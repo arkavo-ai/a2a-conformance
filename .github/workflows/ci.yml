@@ -47,6 +47,7 @@ jobs:
       - name: Install build tools
         run: apt-get update && apt-get install -y curl build-essential
       - name: Install Rust
+        shell: bash
         run: |
           set -o pipefail
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
