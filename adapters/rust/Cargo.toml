@@ -15,6 +15,7 @@ name = "client-harness"
 path = "src/bin/client_harness.rs"
 
 [dependencies]
+url = "2"
 # Local clone for now; flip to crates.io once published:
 #   a2a = { package = "a2a-lf", version = "0.3" }
 a2a = { package = "a2a-lf", git = "https://github.com/a2aproject/a2a-rs.git", rev = "7676ec9f2ef53a0daafb08d8ea0d4436e3075078" }

@@ -8,9 +8,9 @@ use std::io::Write;
 use std::time::{Duration, Instant};
 
 use a2a::*;
-use a2a_client::A2AClient;
 use a2a_client::agent_card::AgentCardResolver;
 use a2a_client::jsonrpc::JsonRpcTransport;
+use a2a_client::{A2AClient, Transport};
 use a2a_pb::protojson_conv::{self, ProtoJsonPayload};
 use futures::{FutureExt, StreamExt};
 use serde::Deserialize;
@@ -50,9 +50,46 @@ fn a2a_error(e: &A2AError) -> Value {
     outcome_error(Some(e.code), e.message.clone())
 }
 
-fn build_client(base_url: &str) -> Result<A2AClient<JsonRpcTransport>, A2AError> {
+type Client = A2AClient<Box<dyn Transport>>;
+
+/// Returns true when two URLs share scheme://host:port.
+fn same_authority(a: &str, b: &str) -> bool {
+    fn authority(u: &str) -> Option<(String, String, Option<u16>)> {
+        let parsed = url::Url::parse(u).ok()?;
+        Some((
+            parsed.scheme().to_string(),
+            parsed.host_str()?.to_string(),
+            parsed.port_or_known_default(),
+        ))
+    }
+    matches!((authority(a), authority(b)), (Some(x), Some(y)) if x == y)
+}
+
+/// Card-first construction, like a real SDK consumer: resolve the agent card
+/// and build through the factory so SDK-side card-derived behavior (interface
+/// selection, tenant echoing) engages. Falls back to a synthetic JSONRPC
+/// transport when the card is unavailable or its JSONRPC interface points at
+/// a different authority (guard against wandering off to fixture URLs).
+async fn build_client(base_url: &str) -> Result<Client, A2AError> {
+    let resolver = AgentCardResolver::new(None);
+    if let Ok(card) = resolver.resolve(base_url).await {
+        let jsonrpc_iface_local = card.supported_interfaces.iter().any(|i| {
+            i.protocol_binding.eq_ignore_ascii_case(TRANSPORT_PROTOCOL_JSONRPC)
+                && same_authority(&i.url, base_url)
+        });
+        if jsonrpc_iface_local {
+            let factory = a2a_client::A2AClientFactory::builder()
+                .preferred_bindings(vec![TRANSPORT_PROTOCOL_JSONRPC.to_string()])
+                .build();
+            if let Ok(client) = factory.create_from_card(&card).await {
+                return Ok(client);
+            }
+        }
+    }
     let http = a2a_client::default_reqwest_client(None)?;
-    Ok(A2AClient::new(JsonRpcTransport::new(http, base_url.to_string())))
+    let transport: Box<dyn Transport> =
+        Box::new(JsonRpcTransport::new(http, base_url.to_string()));
+    Ok(A2AClient::new(transport))
 }
 
 fn decode_params<T: ProtoJsonPayload>(params: &Option<Value>) -> Result<T, Value> {
@@ -70,14 +107,14 @@ async fn run_unary<Req, Resp, F, Fut>(input: &InputLine, call: F) -> Value
 where
     Req: ProtoJsonPayload,
     Resp: ProtoJsonPayload,
-    F: FnOnce(A2AClient<JsonRpcTransport>, Req) -> Fut,
+    F: FnOnce(Client, Req) -> Fut,
     Fut: Future<Output = Result<Resp, A2AError>>,
 {
     let req: Req = match decode_params(&input.params) {
         Ok(r) => r,
         Err(outcome) => return outcome,
     };
-    let client = match build_client(&input.base_url) {
+    let client = match build_client(&input.base_url).await {
         Ok(c) => c,
         Err(e) => return outcome_harness_error(format!("failed to build client: {e}")),
     };
@@ -91,7 +128,7 @@ where
 }
 
 async fn run_streaming(input: &InputLine) -> Value {
-    let client = match build_client(&input.base_url) {
+    let client = match build_client(&input.base_url).await {
         Ok(c) => c,
         Err(e) => return outcome_harness_error(format!("failed to build client: {e}")),
     };
