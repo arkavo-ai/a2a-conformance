@@ -32,7 +32,9 @@ public enum JSONValue: Sendable, Equatable {
         case is NSNull:
             return .null
         case let n as NSNumber:
-            if CFGetTypeID(n) == CFBooleanGetTypeID() {
+            // JSONSerialization booleans report objCType "c" on both Darwin
+            // and corelibs-foundation; CFGetTypeID is Darwin-only.
+            if String(cString: n.objCType) == "c" {
                 return .bool(n.boolValue)
             }
             // Preserve integers exactly when possible.
