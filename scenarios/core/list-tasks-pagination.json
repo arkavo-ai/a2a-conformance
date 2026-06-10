@@ -1,0 +1,55 @@
+{
+  "id": "core/list-tasks-pagination",
+  "title": "ListTasks returns tasks plus pagination fields",
+  "spec": "§3.1.4, §9.4.4",
+  "client": {
+    "op": "ListTasks",
+    "params": {
+      "pageSize": 2
+    }
+  },
+  "server": {
+    "respond": {
+      "tasks": [
+        {
+          "id": "t-l1",
+          "contextId": "c-1",
+          "status": {
+            "state": "TASK_STATE_COMPLETED"
+          }
+        },
+        {
+          "id": "t-l2",
+          "contextId": "c-1",
+          "status": {
+            "state": "TASK_STATE_WORKING"
+          }
+        }
+      ],
+      "nextPageToken": "page-2",
+      "pageSize": 2,
+      "totalSize": 5
+    }
+  },
+  "expect": {
+    "kind": "result",
+    "checks": [
+      {
+        "path": "$.tasks",
+        "count": 2
+      },
+      {
+        "path": "$.tasks[1].id",
+        "equals": "t-l2"
+      },
+      {
+        "path": "$.nextPageToken",
+        "equals": "page-2"
+      }
+    ]
+  },
+  "tags": [
+    "core",
+    "v1.0"
+  ]
+}

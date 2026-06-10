@@ -1,0 +1,38 @@
+{
+  "id": "core/get-task",
+  "title": "GetTask returns the current task state",
+  "spec": "§3.1.3, §9.4.3",
+  "client": {
+    "op": "GetTask",
+    "params": {
+      "id": "t-get-1"
+    }
+  },
+  "server": {
+    "respond": {
+      "id": "t-get-1",
+      "contextId": "c-1",
+      "status": {
+        "state": "TASK_STATE_WORKING",
+        "timestamp": "2026-01-01T00:00:01.000Z"
+      }
+    }
+  },
+  "expect": {
+    "kind": "result",
+    "checks": [
+      {
+        "path": "$.id",
+        "equals": "t-get-1"
+      },
+      {
+        "path": "$.status.state",
+        "equals": "TASK_STATE_WORKING"
+      }
+    ]
+  },
+  "tags": [
+    "core",
+    "v1.0"
+  ]
+}

@@ -1,0 +1,51 @@
+{
+  "id": "streaming/sse-message-only-stream",
+  "title": "Streaming send answered by a single message event",
+  "spec": "§3.1.2 (StreamResponse.message)",
+  "client": {
+    "op": "SendStreamingMessage",
+    "params": {
+      "message": {
+        "messageId": "m-1",
+        "role": "ROLE_USER",
+        "parts": [
+          {
+            "text": "quick question"
+          }
+        ]
+      }
+    }
+  },
+  "server": {
+    "sse": [
+      {
+        "message": {
+          "messageId": "m-s1",
+          "role": "ROLE_AGENT",
+          "parts": [
+            {
+              "text": "quick answer",
+              "mediaType": "text/plain"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "expect": {
+    "kind": "stream",
+    "streamOrder": [
+      "message"
+    ],
+    "checks": [
+      {
+        "path": "$.events[0].message.parts[0].text",
+        "equals": "quick answer"
+      }
+    ]
+  },
+  "tags": [
+    "streaming",
+    "v1.0"
+  ]
+}

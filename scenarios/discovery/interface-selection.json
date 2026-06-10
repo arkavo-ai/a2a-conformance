@@ -1,0 +1,64 @@
+{
+  "id": "discovery/interface-selection",
+  "title": "Client selects the first compatible JSONRPC interface from a mixed card",
+  "spec": "§8.3.2",
+  "client": {
+    "op": "SelectInterface"
+  },
+  "server": {
+    "card": {
+      "name": "Multi Binding Agent",
+      "description": "Declares gRPC first, JSONRPC second.",
+      "version": "1.0.0",
+      "supportedInterfaces": [
+        {
+          "url": "https://grpc.invalid/a2a",
+          "protocolBinding": "GRPC",
+          "protocolVersion": "1.0"
+        },
+        {
+          "url": "{{baseUrl}}",
+          "protocolBinding": "JSONRPC",
+          "protocolVersion": "1.0"
+        },
+        {
+          "url": "{{baseUrl}}/json",
+          "protocolBinding": "HTTP+JSON",
+          "protocolVersion": "1.0"
+        }
+      ],
+      "capabilities": {
+        "streaming": true
+      },
+      "defaultInputModes": [
+        "text/plain"
+      ],
+      "defaultOutputModes": [
+        "text/plain"
+      ],
+      "skills": [
+        {
+          "id": "conformance",
+          "name": "Conformance",
+          "description": "Scripted conformance agent.",
+          "tags": [
+            "conformance"
+          ]
+        }
+      ]
+    }
+  },
+  "expect": {
+    "kind": "interface",
+    "checks": [
+      {
+        "path": "$.protocolBinding",
+        "equals": "JSONRPC"
+      }
+    ]
+  },
+  "tags": [
+    "discovery",
+    "v1.0"
+  ]
+}

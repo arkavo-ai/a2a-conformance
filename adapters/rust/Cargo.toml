@@ -1,0 +1,34 @@
+[package]
+name = "a2a-conformance-rust"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[workspace]
+
+[[bin]]
+name = "server-harness"
+path = "src/bin/server_harness.rs"
+
+[[bin]]
+name = "client-harness"
+path = "src/bin/client_harness.rs"
+
+[dependencies]
+# Local clone for now; flip to crates.io once published:
+#   a2a = { package = "a2a-lf", version = "0.3" }
+a2a = { package = "a2a-lf", path = "/tmp/a2a-rs/a2a" }
+#   a2a-client = { package = "a2a-client-lf", version = "0.2", default-features = false }
+a2a-client = { package = "a2a-client-lf", path = "/tmp/a2a-rs/a2a-client", default-features = false }
+#   a2a-server = { package = "a2a-server-lf", version = "0.4", default-features = false }
+a2a-server = { package = "a2a-server-lf", path = "/tmp/a2a-rs/a2a-server", default-features = false }
+#   a2a-pb = { version = "0.1" }
+a2a-pb = { package = "a2a-pb", path = "/tmp/a2a-rs/a2a-pb" }
+
+async-trait = "0.1"
+axum = "0.8"
+futures = "0.3"
+reqwest = { version = "0.13", default-features = false, features = ["json"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "io-std", "io-util", "time"] }

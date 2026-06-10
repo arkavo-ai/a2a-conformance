@@ -1,0 +1,31 @@
+# Implementations under test. `build` runs from the repo root; the runner
+# appends `--scenarios <dir> --public-base-url <url>` to `server` invocations
+# and drives `client` over stdin/stdout NDJSON (see CONTRACT.md).
+
+[implementations.rust-a2a]
+# a2aproject/a2a-rs (crates: a2a-lf / a2a-client-lf / a2a-server-lf)
+build = "cargo build --release --manifest-path adapters/rust/Cargo.toml"
+client = "adapters/rust/target/release/client-harness"
+server = "adapters/rust/target/release/server-harness"
+notes = "official Rust SDK"
+
+[implementations.arkavo-swift]
+# arkavo-ai/a2a-swift 0.1.0 (client + transport-agnostic dispatcher; Hummingbird shim in the adapter only)
+build = "swift build -c release --package-path adapters/arkavo-swift"
+client = "adapters/arkavo-swift/.build/release/ClientHarness"
+server = "adapters/arkavo-swift/.build/release/ServerHarness"
+notes = "arkavo Swift SDK"
+
+[implementations.tolgaki-swift]
+# tolgaki/a2a-swift @ 5b0afd92 (client), tolgaki/a2a-swift-server @ 0a1db4f7 (Hummingbird server)
+build = "swift build -c release --package-path adapters/tolgaki-swift"
+client = "adapters/tolgaki-swift/.build/release/ClientHarness"
+server = "adapters/tolgaki-swift/.build/release/ServerHarness"
+notes = "community Swift SDK (v1.0 + v0.3 compat)"
+
+[matrix]
+clients = ["rust-a2a", "arkavo-swift", "tolgaki-swift"]
+servers = ["rust-a2a", "arkavo-swift", "tolgaki-swift"]
+
+[runner]
+timeout_ms = 30000

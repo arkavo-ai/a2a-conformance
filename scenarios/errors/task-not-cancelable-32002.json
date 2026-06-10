@@ -1,0 +1,25 @@
+{
+  "id": "errors/task-not-cancelable-32002",
+  "title": "CancelTask surfaces TaskNotCancelableError (-32002) to the caller",
+  "spec": "§5.4, §9.5",
+  "client": {
+    "op": "CancelTask",
+    "params": {
+      "id": "t-done"
+    }
+  },
+  "server": {
+    "error": {
+      "code": -32002,
+      "message": "Task cannot be canceled"
+    }
+  },
+  "expect": {
+    "kind": "error",
+    "errorCode": -32002
+  },
+  "tags": [
+    "errors",
+    "v1.0"
+  ]
+}

@@ -1,0 +1,33 @@
+{
+  "id": "errors/invalid-agent-response-32006",
+  "title": "SendMessage surfaces InvalidAgentResponseError (-32006) to the caller",
+  "spec": "§5.4, §9.5",
+  "client": {
+    "op": "SendMessage",
+    "params": {
+      "message": {
+        "messageId": "m-1",
+        "role": "ROLE_USER",
+        "parts": [
+          {
+            "text": "anything"
+          }
+        ]
+      }
+    }
+  },
+  "server": {
+    "error": {
+      "code": -32006,
+      "message": "Invalid agent response"
+    }
+  },
+  "expect": {
+    "kind": "error",
+    "errorCode": -32006
+  },
+  "tags": [
+    "errors",
+    "v1.0"
+  ]
+}

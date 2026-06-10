@@ -1,0 +1,50 @@
+{
+  "id": "core/send-message-returns-message",
+  "title": "SendMessage where the agent replies with a direct message",
+  "spec": "§3.1.1, §9.4.1",
+  "client": {
+    "op": "SendMessage",
+    "params": {
+      "message": {
+        "messageId": "m-1",
+        "role": "ROLE_USER",
+        "parts": [
+          {
+            "text": "hello"
+          }
+        ]
+      }
+    }
+  },
+  "server": {
+    "respond": {
+      "message": {
+        "messageId": "m-reply-1",
+        "role": "ROLE_AGENT",
+        "parts": [
+          {
+            "text": "hello back",
+            "mediaType": "text/plain"
+          }
+        ]
+      }
+    }
+  },
+  "expect": {
+    "kind": "result",
+    "checks": [
+      {
+        "path": "$.message.role",
+        "equals": "ROLE_AGENT"
+      },
+      {
+        "path": "$.message.parts[0].text",
+        "equals": "hello back"
+      }
+    ]
+  },
+  "tags": [
+    "core",
+    "v1.0"
+  ]
+}

@@ -1,0 +1,68 @@
+{
+  "id": "streaming/sse-status-updates",
+  "title": "Streaming send: task snapshot then status updates to terminal",
+  "spec": "§3.1.2, §9.4.2",
+  "client": {
+    "op": "SendStreamingMessage",
+    "params": {
+      "message": {
+        "messageId": "m-1",
+        "role": "ROLE_USER",
+        "parts": [
+          {
+            "text": "stream status"
+          }
+        ]
+      }
+    }
+  },
+  "server": {
+    "sse": [
+      {
+        "task": {
+          "id": "t-st-1",
+          "contextId": "c-1",
+          "status": {
+            "state": "TASK_STATE_SUBMITTED"
+          }
+        }
+      },
+      {
+        "statusUpdate": {
+          "taskId": "t-st-1",
+          "contextId": "c-1",
+          "status": {
+            "state": "TASK_STATE_WORKING"
+          }
+        }
+      },
+      {
+        "statusUpdate": {
+          "taskId": "t-st-1",
+          "contextId": "c-1",
+          "status": {
+            "state": "TASK_STATE_COMPLETED"
+          }
+        }
+      }
+    ]
+  },
+  "expect": {
+    "kind": "stream",
+    "streamOrder": [
+      "task",
+      "statusUpdate",
+      "statusUpdate"
+    ],
+    "checks": [
+      {
+        "path": "$.events[2].statusUpdate.status.state",
+        "equals": "TASK_STATE_COMPLETED"
+      }
+    ]
+  },
+  "tags": [
+    "streaming",
+    "v1.0"
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "id": "errors/task-not-found-32001",
+  "title": "GetTask surfaces TaskNotFoundError (-32001) to the caller",
+  "spec": "§5.4, §9.5",
+  "client": {
+    "op": "GetTask",
+    "params": {
+      "id": "no-such-task"
+    }
+  },
+  "server": {
+    "error": {
+      "code": -32001,
+      "message": "Task not found"
+    }
+  },
+  "expect": {
+    "kind": "error",
+    "errorCode": -32001
+  },
+  "tags": [
+    "errors",
+    "v1.0"
+  ]
+}

@@ -1,0 +1,49 @@
+{
+  "id": "edge/base64-raw-part",
+  "title": "Artifact with raw bytes part round-trips base64 (Part.raw)",
+  "spec": "Part.raw proto3 JSON mapping (bytes as base64)",
+  "client": {
+    "op": "GetTask",
+    "params": {
+      "id": "t-raw-1"
+    }
+  },
+  "server": {
+    "respond": {
+      "id": "t-raw-1",
+      "contextId": "c-1",
+      "status": {
+        "state": "TASK_STATE_COMPLETED"
+      },
+      "artifacts": [
+        {
+          "artifactId": "a-raw-1",
+          "parts": [
+            {
+              "raw": "aGVsbG8gcmF3IGJ5dGVz",
+              "filename": "blob.bin",
+              "mediaType": "application/octet-stream"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "expect": {
+    "kind": "result",
+    "checks": [
+      {
+        "path": "$.artifacts[0].parts[0].raw",
+        "equals": "aGVsbG8gcmF3IGJ5dGVz"
+      },
+      {
+        "path": "$.artifacts[0].parts[0].filename",
+        "equals": "blob.bin"
+      }
+    ]
+  },
+  "tags": [
+    "edge",
+    "v1.0"
+  ]
+}

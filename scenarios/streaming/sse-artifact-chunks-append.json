@@ -1,0 +1,100 @@
+{
+  "id": "streaming/sse-artifact-chunks-append",
+  "title": "Streaming send: artifact delivered in chunks with append/lastChunk",
+  "spec": "§3.1.2, TaskArtifactUpdateEvent.append/last_chunk",
+  "client": {
+    "op": "SendStreamingMessage",
+    "params": {
+      "message": {
+        "messageId": "m-1",
+        "role": "ROLE_USER",
+        "parts": [
+          {
+            "text": "stream artifact"
+          }
+        ]
+      }
+    }
+  },
+  "server": {
+    "sse": [
+      {
+        "task": {
+          "id": "t-sa-1",
+          "contextId": "c-1",
+          "status": {
+            "state": "TASK_STATE_WORKING"
+          }
+        }
+      },
+      {
+        "artifactUpdate": {
+          "taskId": "t-sa-1",
+          "contextId": "c-1",
+          "artifact": {
+            "artifactId": "a-sa-1",
+            "parts": [
+              {
+                "text": "chunk one ",
+                "mediaType": "text/plain"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "artifactUpdate": {
+          "taskId": "t-sa-1",
+          "contextId": "c-1",
+          "append": true,
+          "lastChunk": true,
+          "artifact": {
+            "artifactId": "a-sa-1",
+            "parts": [
+              {
+                "text": "chunk two",
+                "mediaType": "text/plain"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "statusUpdate": {
+          "taskId": "t-sa-1",
+          "contextId": "c-1",
+          "status": {
+            "state": "TASK_STATE_COMPLETED"
+          }
+        }
+      }
+    ]
+  },
+  "expect": {
+    "kind": "stream",
+    "streamOrder": [
+      "task",
+      "artifactUpdate",
+      "artifactUpdate",
+      "statusUpdate"
+    ],
+    "checks": [
+      {
+        "path": "$.events[2].artifactUpdate.append",
+        "equals": true
+      },
+      {
+        "path": "$.events[2].artifactUpdate.lastChunk",
+        "equals": true
+      },
+      {
+        "path": "$.events[2].artifactUpdate.artifact.artifactId",
+        "equals": "a-sa-1"
+      }
+    ]
+  },
+  "tags": [
+    "streaming",
+    "v1.0"
+  ]
+}

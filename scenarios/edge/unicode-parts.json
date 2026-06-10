@@ -1,0 +1,46 @@
+{
+  "id": "edge/unicode-parts",
+  "title": "Text parts with multi-byte, combining, and RTL content survive transport",
+  "spec": "JSON string handling; SSE/UTF-8 byte boundaries",
+  "client": {
+    "op": "SendMessage",
+    "params": {
+      "message": {
+        "messageId": "m-1",
+        "role": "ROLE_USER",
+        "parts": [
+          {
+            "text": "unicode test"
+          }
+        ]
+      }
+    }
+  },
+  "server": {
+    "respond": {
+      "message": {
+        "messageId": "m-uni-1",
+        "role": "ROLE_AGENT",
+        "parts": [
+          {
+            "text": "café 統合テスト 🚀 مرحبا é",
+            "mediaType": "text/plain"
+          }
+        ]
+      }
+    }
+  },
+  "expect": {
+    "kind": "result",
+    "checks": [
+      {
+        "path": "$.message.parts[0].text",
+        "equals": "café 統合テスト 🚀 مرحبا é"
+      }
+    ]
+  },
+  "tags": [
+    "edge",
+    "v1.0"
+  ]
+}

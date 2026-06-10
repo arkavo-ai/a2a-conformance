@@ -1,0 +1,23 @@
+{
+  "id": "errors/extended-card-not-configured-32007",
+  "title": "GetExtendedAgentCard surfaces ExtendedAgentCardNotConfiguredError (-32007) to the caller",
+  "spec": "§5.4, §9.4.8",
+  "client": {
+    "op": "GetExtendedAgentCard",
+    "params": {}
+  },
+  "server": {
+    "error": {
+      "code": -32007,
+      "message": "Extended agent card not configured"
+    }
+  },
+  "expect": {
+    "kind": "error",
+    "errorCode": -32007
+  },
+  "tags": [
+    "errors",
+    "v1.0"
+  ]
+}

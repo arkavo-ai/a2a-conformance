@@ -1,0 +1,489 @@
+{
+  "id": "edge/large-history",
+  "title": "Task with 50 history messages decodes completely",
+  "spec": "no size limits below transport level",
+  "client": {
+    "op": "GetTask",
+    "params": {
+      "id": "t-lh-1"
+    }
+  },
+  "server": {
+    "respond": {
+      "id": "t-lh-1",
+      "contextId": "c-1",
+      "status": {
+        "state": "TASK_STATE_COMPLETED"
+      },
+      "history": [
+        {
+          "messageId": "m-lh-00",
+          "role": "ROLE_USER",
+          "parts": [
+            {
+              "text": "history message 00"
+            }
+          ]
+        },
+        {
+          "messageId": "m-lh-01",
+          "role": "ROLE_USER",
+          "parts": [
+            {
+              "text": "history message 01"
+            }
+          ]
+        },
+        {
+          "messageId": "m-lh-02",
+          "role": "ROLE_USER",
+          "parts": [
+            {
+              "text": "history message 02"
+            }
+          ]
+        },
+        {
+          "messageId": "m-lh-03",
+          "role": "ROLE_USER",
+          "parts": [
+            {
+              "text": "history message 03"
+            }
+          ]
+        },
+        {
+          "messageId": "m-lh-04",
+          "role": "ROLE_USER",
+          "parts": [
+            {
+              "text": "history message 04"
+            }
+          ]
+        },
+        {
+          "messageId": "m-lh-05",
+          "role": "ROLE_USER",
+          "parts": [
+            {
+              "text": "history message 05"
+            }
+          ]
+        },
+        {
+          "messageId": "m-lh-06",
+          "role": "ROLE_USER",
+          "parts": [
+            {
+              "text": "history message 06"
+            }
+          ]
+        },
+        {
+          "messageId": "m-lh-07",
+          "role": "ROLE_USER",
+          "parts": [
+            {
+              "text": "history message 07"
+            }
+          ]
+        },
+        {
+          "messageId": "m-lh-08",
+          "role": "ROLE_USER",
+          "parts": [
+            {
+              "text": "history message 08"
+            }
+          ]
+        },
+        {
+          "messageId": "m-lh-09",
+          "role": "ROLE_USER",
+          "parts": [
+            {
+              "text": "history message 09"
+            }
+          ]
+        },
+        {
+          "messageId": "m-lh-10",
+          "role": "ROLE_USER",
+          "parts": [
+            {
+              "text": "history message 10"
+            }
+          ]
+        },
+        {
+          "messageId": "m-lh-11",
+          "role": "ROLE_USER",
+          "parts": [
+            {
+              "text": "history message 11"
+            }
+          ]
+        },
+        {
+          "messageId": "m-lh-12",
+          "role": "ROLE_USER",
+          "parts": [
+            {
+              "text": "history message 12"
+            }
+          ]
+        },
+        {
+          "messageId": "m-lh-13",
+          "role": "ROLE_USER",
+          "parts": [
+            {
+              "text": "history message 13"
+            }
+          ]
+        },
+        {
+          "messageId": "m-lh-14",
+          "role": "ROLE_USER",
+          "parts": [
+            {
+              "text": "history message 14"
+            }
+          ]
+        },
+        {
+          "messageId": "m-lh-15",
+          "role": "ROLE_USER",
+          "parts": [
+            {
+              "text": "history message 15"
+            }
+          ]
+        },
+        {
+          "messageId": "m-lh-16",
+          "role": "ROLE_USER",
+          "parts": [
+            {
+              "text": "history message 16"
+            }
+          ]
+        },
+        {
+          "messageId": "m-lh-17",
+          "role": "ROLE_USER",
+          "parts": [
+            {
+              "text": "history message 17"
+            }
+          ]
+        },
+        {
+          "messageId": "m-lh-18",
+          "role": "ROLE_USER",
+          "parts": [
+            {
+              "text": "history message 18"
+            }
+          ]
+        },
+        {
+          "messageId": "m-lh-19",
+          "role": "ROLE_USER",
+          "parts": [
+            {
+              "text": "history message 19"
+            }
+          ]
+        },
+        {
+          "messageId": "m-lh-20",
+          "role": "ROLE_USER",
+          "parts": [
+            {
+              "text": "history message 20"
+            }
+          ]
+        },
+        {
+          "messageId": "m-lh-21",
+          "role": "ROLE_USER",
+          "parts": [
+            {
+              "text": "history message 21"
+            }
+          ]
+        },
+        {
+          "messageId": "m-lh-22",
+          "role": "ROLE_USER",
+          "parts": [
+            {
+              "text": "history message 22"
+            }
+          ]
+        },
+        {
+          "messageId": "m-lh-23",
+          "role": "ROLE_USER",
+          "parts": [
+            {
+              "text": "history message 23"
+            }
+          ]
+        },
+        {
+          "messageId": "m-lh-24",
+          "role": "ROLE_USER",
+          "parts": [
+            {
+              "text": "history message 24"
+            }
+          ]
+        },
+        {
+          "messageId": "m-lh-25",
+          "role": "ROLE_USER",
+          "parts": [
+            {
+              "text": "history message 25"
+            }
+          ]
+        },
+        {
+          "messageId": "m-lh-26",
+          "role": "ROLE_USER",
+          "parts": [
+            {
+              "text": "history message 26"
+            }
+          ]
+        },
+        {
+          "messageId": "m-lh-27",
+          "role": "ROLE_USER",
+          "parts": [
+            {
+              "text": "history message 27"
+            }
+          ]
+        },
+        {
+          "messageId": "m-lh-28",
+          "role": "ROLE_USER",
+          "parts": [
+            {
+              "text": "history message 28"
+            }
+          ]
+        },
+        {
+          "messageId": "m-lh-29",
+          "role": "ROLE_USER",
+          "parts": [
+            {
+              "text": "history message 29"
+            }
+          ]
+        },
+        {
+          "messageId": "m-lh-30",
+          "role": "ROLE_USER",
+          "parts": [
+            {
+              "text": "history message 30"
+            }
+          ]
+        },
+        {
+          "messageId": "m-lh-31",
+          "role": "ROLE_USER",
+          "parts": [
+            {
+              "text": "history message 31"
+            }
+          ]
+        },
+        {
+          "messageId": "m-lh-32",
+          "role": "ROLE_USER",
+          "parts": [
+            {
+              "text": "history message 32"
+            }
+          ]
+        },
+        {
+          "messageId": "m-lh-33",
+          "role": "ROLE_USER",
+          "parts": [
+            {
+              "text": "history message 33"
+            }
+          ]
+        },
+        {
+          "messageId": "m-lh-34",
+          "role": "ROLE_USER",
+          "parts": [
+            {
+              "text": "history message 34"
+            }
+          ]
+        },
+        {
+          "messageId": "m-lh-35",
+          "role": "ROLE_USER",
+          "parts": [
+            {
+              "text": "history message 35"
+            }
+          ]
+        },
+        {
+          "messageId": "m-lh-36",
+          "role": "ROLE_USER",
+          "parts": [
+            {
+              "text": "history message 36"
+            }
+          ]
+        },
+        {
+          "messageId": "m-lh-37",
+          "role": "ROLE_USER",
+          "parts": [
+            {
+              "text": "history message 37"
+            }
+          ]
+        },
+        {
+          "messageId": "m-lh-38",
+          "role": "ROLE_USER",
+          "parts": [
+            {
+              "text": "history message 38"
+            }
+          ]
+        },
+        {
+          "messageId": "m-lh-39",
+          "role": "ROLE_USER",
+          "parts": [
+            {
+              "text": "history message 39"
+            }
+          ]
+        },
+        {
+          "messageId": "m-lh-40",
+          "role": "ROLE_USER",
+          "parts": [
+            {
+              "text": "history message 40"
+            }
+          ]
+        },
+        {
+          "messageId": "m-lh-41",
+          "role": "ROLE_USER",
+          "parts": [
+            {
+              "text": "history message 41"
+            }
+          ]
+        },
+        {
+          "messageId": "m-lh-42",
+          "role": "ROLE_USER",
+          "parts": [
+            {
+              "text": "history message 42"
+            }
+          ]
+        },
+        {
+          "messageId": "m-lh-43",
+          "role": "ROLE_USER",
+          "parts": [
+            {
+              "text": "history message 43"
+            }
+          ]
+        },
+        {
+          "messageId": "m-lh-44",
+          "role": "ROLE_USER",
+          "parts": [
+            {
+              "text": "history message 44"
+            }
+          ]
+        },
+        {
+          "messageId": "m-lh-45",
+          "role": "ROLE_USER",
+          "parts": [
+            {
+              "text": "history message 45"
+            }
+          ]
+        },
+        {
+          "messageId": "m-lh-46",
+          "role": "ROLE_USER",
+          "parts": [
+            {
+              "text": "history message 46"
+            }
+          ]
+        },
+        {
+          "messageId": "m-lh-47",
+          "role": "ROLE_USER",
+          "parts": [
+            {
+              "text": "history message 47"
+            }
+          ]
+        },
+        {
+          "messageId": "m-lh-48",
+          "role": "ROLE_USER",
+          "parts": [
+            {
+              "text": "history message 48"
+            }
+          ]
+        },
+        {
+          "messageId": "m-lh-49",
+          "role": "ROLE_USER",
+          "parts": [
+            {
+              "text": "history message 49"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "expect": {
+    "kind": "result",
+    "checks": [
+      {
+        "path": "$.history",
+        "count": 50
+      },
+      {
+        "path": "$.history[49].messageId",
+        "equals": "m-lh-49"
+      }
+    ]
+  },
+  "tags": [
+    "edge",
+    "v1.0"
+  ]
+}

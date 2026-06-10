@@ -1,0 +1,26 @@
+{
+  "id": "errors/push-not-supported-32003",
+  "title": "CreateTaskPushNotificationConfig surfaces PushNotificationNotSupportedError (-32003) to the caller",
+  "spec": "§5.4, §9.5",
+  "client": {
+    "op": "CreateTaskPushNotificationConfig",
+    "params": {
+      "taskId": "t-p1",
+      "url": "https://client.example.com/hook"
+    }
+  },
+  "server": {
+    "error": {
+      "code": -32003,
+      "message": "Push Notification is not supported"
+    }
+  },
+  "expect": {
+    "kind": "error",
+    "errorCode": -32003
+  },
+  "tags": [
+    "errors",
+    "v1.0"
+  ]
+}

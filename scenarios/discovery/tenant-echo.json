@@ -1,0 +1,84 @@
+{
+  "id": "discovery/tenant-echo",
+  "title": "Client echoes the selected interface's tenant on requests",
+  "spec": "§8.3.2 rule 4, SendMessageRequest.tenant",
+  "client": {
+    "op": "SendMessage",
+    "params": {
+      "message": {
+        "messageId": "m-1",
+        "role": "ROLE_USER",
+        "parts": [
+          {
+            "text": "tenant check"
+          }
+        ]
+      }
+    }
+  },
+  "server": {
+    "card": {
+      "name": "Tenant Agent",
+      "description": "Declares a tenant on its JSONRPC interface.",
+      "version": "1.0.0",
+      "supportedInterfaces": [
+        {
+          "url": "{{baseUrl}}",
+          "protocolBinding": "JSONRPC",
+          "tenant": "tenant-42",
+          "protocolVersion": "1.0"
+        }
+      ],
+      "capabilities": {
+        "streaming": true
+      },
+      "defaultInputModes": [
+        "text/plain"
+      ],
+      "defaultOutputModes": [
+        "text/plain"
+      ],
+      "skills": [
+        {
+          "id": "conformance",
+          "name": "Conformance",
+          "description": "Scripted conformance agent.",
+          "tags": [
+            "conformance"
+          ]
+        }
+      ]
+    },
+    "respond": {
+      "task": {
+        "id": "t-ten-1",
+        "contextId": "c-1",
+        "status": {
+          "state": "TASK_STATE_COMPLETED"
+        }
+      }
+    }
+  },
+  "expect": {
+    "kind": "result",
+    "checks": [
+      {
+        "path": "$.task.id",
+        "equals": "t-ten-1"
+      }
+    ]
+  },
+  "expectRequest": {
+    "checks": [
+      {
+        "path": "$.params.tenant",
+        "equals": "tenant-42"
+      }
+    ]
+  },
+  "tags": [
+    "discovery",
+    "v1.0",
+    "tenant"
+  ]
+}

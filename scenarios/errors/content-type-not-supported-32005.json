@@ -1,0 +1,33 @@
+{
+  "id": "errors/content-type-not-supported-32005",
+  "title": "SendMessage surfaces ContentTypeNotSupportedError (-32005) to the caller",
+  "spec": "§5.4, §9.5",
+  "client": {
+    "op": "SendMessage",
+    "params": {
+      "message": {
+        "messageId": "m-1",
+        "role": "ROLE_USER",
+        "parts": [
+          {
+            "text": "video request"
+          }
+        ]
+      }
+    }
+  },
+  "server": {
+    "error": {
+      "code": -32005,
+      "message": "Incompatible content types"
+    }
+  },
+  "expect": {
+    "kind": "error",
+    "errorCode": -32005
+  },
+  "tags": [
+    "errors",
+    "v1.0"
+  ]
+}

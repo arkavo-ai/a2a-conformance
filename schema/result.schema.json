@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/arkavo-ai/a2a-conformance/schema/result.schema.json",
+  "title": "A2A conformance result line",
+  "description": "One line of reports/results.ndjson, emitted by the runner after evaluating a harness outcome against the scenario's expectations. (Client harnesses emit the simpler outcome lines described in schema/harness-outcome.schema.json; the runner derives these.)",
+  "type": "object",
+  "required": ["scenario", "client", "server", "status", "durationMs"],
+  "additionalProperties": false,
+  "properties": {
+    "scenario": { "type": "string" },
+    "client": { "type": "string", "description": "Implementation name from matrix.toml." },
+    "server": { "type": "string" },
+    "status": { "enum": ["pass", "fail", "error", "skip", "n/a"] },
+    "detail": {
+      "type": ["string", "null"],
+      "description": "Human-readable failure/error explanation; null on pass."
+    },
+    "failedChecks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["path", "reason"],
+        "properties": {
+          "path": { "type": "string" },
+          "reason": { "type": "string" },
+          "expected": {},
+          "actual": {}
+        }
+      }
+    },
+    "wire": {
+      "type": ["object", "null"],
+      "description": "Base64 wire capture from the runner's proxy, present on fail/error.",
+      "properties": {
+        "request": { "type": ["string", "null"] },
+        "response": { "type": ["string", "null"] },
+        "sseFrames": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "durationMs": { "type": "number" },
+    "clientImpl": {
+      "type": ["object", "null"],
+      "properties": {
+        "name": { "type": "string" },
+        "version": { "type": "string" }
+      }
+    }
+  }
+}

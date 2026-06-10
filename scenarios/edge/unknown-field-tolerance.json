@@ -1,0 +1,32 @@
+{
+  "id": "edge/unknown-field-tolerance",
+  "title": "Result carrying unknown fields decodes (forward compatibility, §5.7)",
+  "spec": "§5.7 (implementations SHOULD ignore unrecognized fields)",
+  "client": {
+    "op": "GetTask",
+    "params": {
+      "id": "t-uf-1"
+    }
+  },
+  "server": {
+    "rawResult": "{\"id\": \"t-uf-1\", \"contextId\": \"c-1\", \"status\": {\"state\": \"TASK_STATE_COMPLETED\", \"futureStatusField\": true}, \"futureTopLevelField\": {\"nested\": [1, 2, 3]}}"
+  },
+  "expect": {
+    "kind": "result",
+    "checks": [
+      {
+        "path": "$.id",
+        "equals": "t-uf-1"
+      },
+      {
+        "path": "$.status.state",
+        "equals": "TASK_STATE_COMPLETED"
+      }
+    ]
+  },
+  "tags": [
+    "edge",
+    "v1.0",
+    "lenient-decode"
+  ]
+}

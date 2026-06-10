@@ -1,0 +1,66 @@
+{
+  "id": "core/get-task-history-length",
+  "title": "GetTask transmits historyLength and decodes returned history",
+  "spec": "§3.1.3 (history_length)",
+  "client": {
+    "op": "GetTask",
+    "params": {
+      "id": "t-hist-1",
+      "historyLength": 2
+    }
+  },
+  "server": {
+    "respond": {
+      "id": "t-hist-1",
+      "contextId": "c-1",
+      "status": {
+        "state": "TASK_STATE_COMPLETED"
+      },
+      "history": [
+        {
+          "messageId": "m-h1",
+          "role": "ROLE_USER",
+          "parts": [
+            {
+              "text": "first"
+            }
+          ]
+        },
+        {
+          "messageId": "m-h2",
+          "role": "ROLE_USER",
+          "parts": [
+            {
+              "text": "second"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "expect": {
+    "kind": "result",
+    "checks": [
+      {
+        "path": "$.history",
+        "count": 2
+      },
+      {
+        "path": "$.history[1].messageId",
+        "equals": "m-h2"
+      }
+    ]
+  },
+  "expectRequest": {
+    "checks": [
+      {
+        "path": "$.params.historyLength",
+        "equals": 2
+      }
+    ]
+  },
+  "tags": [
+    "core",
+    "v1.0"
+  ]
+}

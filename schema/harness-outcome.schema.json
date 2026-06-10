@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/arkavo-ai/a2a-conformance/schema/harness-outcome.schema.json",
+  "title": "Client harness outcome line",
+  "description": "One NDJSON line per scenario on the client harness's stdout. The harness reports what its SDK observed, normalized back to wire JSON via the SDK's own encoder; the runner evaluates expectations. Input lines on stdin are {\"scenario\": id, \"baseUrl\": url}.",
+  "type": "object",
+  "required": ["scenario", "outcome", "durationMs", "impl"],
+  "additionalProperties": false,
+  "properties": {
+    "scenario": { "type": "string" },
+    "outcome": {
+      "type": "object",
+      "required": ["kind"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "enum": ["result", "error", "stream", "card", "interface", "harness-error", "unsupported"],
+          "description": "result: op returned, value holds the normalized result. error: SDK surfaced a protocol error, errorCode/errorMessage set. stream: events holds the ordered observed events. card/interface: discovery pseudo-ops. harness-error: the harness itself failed (timeout, crash, decode the SDK could not perform is NOT this — a decode failure the SDK surfaces is kind=error with errorCode null). unsupported: the SDK cannot perform this op (runner reports skip)."
+        },
+        "value": { "description": "Normalized wire JSON of the decoded result/card/interface." },
+        "errorCode": { "type": ["integer", "null"] },
+        "errorMessage": { "type": ["string", "null"] },
+        "events": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["kind"],
+            "properties": {
+              "kind": { "enum": ["task", "message", "statusUpdate", "artifactUpdate"] },
+              "value": {}
+            }
+          }
+        },
+        "detail": { "type": ["string", "null"] }
+      }
+    },
+    "durationMs": { "type": "number" },
+    "impl": {
+      "type": "object",
+      "required": ["name", "version"],
+      "properties": {
+        "name": { "type": "string" },
+        "version": { "type": "string" }
+      }
+    }
+  }
+}

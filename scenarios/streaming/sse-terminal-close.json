@@ -1,0 +1,58 @@
+{
+  "id": "streaming/sse-terminal-close",
+  "title": "Stream closes after a terminal status update; client must not hang",
+  "spec": "§3.1.2 (terminal states end the stream)",
+  "client": {
+    "op": "SendStreamingMessage",
+    "params": {
+      "message": {
+        "messageId": "m-1",
+        "role": "ROLE_USER",
+        "parts": [
+          {
+            "text": "short stream"
+          }
+        ]
+      }
+    }
+  },
+  "server": {
+    "sse": [
+      {
+        "task": {
+          "id": "t-tc-1",
+          "contextId": "c-1",
+          "status": {
+            "state": "TASK_STATE_WORKING"
+          }
+        }
+      },
+      {
+        "statusUpdate": {
+          "taskId": "t-tc-1",
+          "contextId": "c-1",
+          "status": {
+            "state": "TASK_STATE_FAILED"
+          }
+        }
+      }
+    ]
+  },
+  "expect": {
+    "kind": "stream",
+    "streamOrder": [
+      "task",
+      "statusUpdate"
+    ],
+    "checks": [
+      {
+        "path": "$.events[1].statusUpdate.status.state",
+        "equals": "TASK_STATE_FAILED"
+      }
+    ]
+  },
+  "tags": [
+    "streaming",
+    "v1.0"
+  ]
+}

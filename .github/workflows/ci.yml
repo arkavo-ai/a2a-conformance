@@ -1,0 +1,63 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  validate:
+    name: Validate corpus
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Build runner
+        run: cargo build --manifest-path runner/Cargo.toml
+      - name: Validate scenarios
+        run: ./runner/target/debug/a2a-conformance-runner validate
+
+  matrix-macos:
+    name: Matrix (macOS)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode.app
+      - name: Run matrix
+        run: |
+          cargo build --release --manifest-path runner/Cargo.toml
+          ./runner/target/release/a2a-conformance-runner run \
+            --baseline reports/baseline.ndjson --report reports-ci
+      - name: Upload reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reports-macos
+          path: reports-ci/
+
+  matrix-linux:
+    name: Matrix (Linux)
+    runs-on: ubuntu-latest
+    container: swift:6.3
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+      # No --baseline yet: the committed baseline is macOS-generated, and
+      # Darwin-vs-corelibs divergence is expected signal. Once a Linux run is
+      # reviewed, commit reports/baseline-linux.ndjson and gate on it here.
+      - name: Run matrix
+        run: |
+          cargo build --release --manifest-path runner/Cargo.toml
+          ./runner/target/release/a2a-conformance-runner run --report reports-ci
+      - name: Upload reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reports-linux
+          path: reports-ci/

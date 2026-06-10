@@ -1,0 +1,62 @@
+{
+  "id": "discovery/well-known-agent-card",
+  "title": "Agent card is served at the well-known URI and decodes",
+  "spec": "§8.2, RFC 8615",
+  "client": {
+    "op": "ResolveCard"
+  },
+  "server": {
+    "card": {
+      "name": "Conformance Agent",
+      "description": "Scripted agent for interop testing.",
+      "version": "1.2.3",
+      "supportedInterfaces": [
+        {
+          "url": "{{baseUrl}}",
+          "protocolBinding": "JSONRPC",
+          "protocolVersion": "1.0"
+        }
+      ],
+      "capabilities": {
+        "streaming": true
+      },
+      "defaultInputModes": [
+        "text/plain"
+      ],
+      "defaultOutputModes": [
+        "text/plain"
+      ],
+      "skills": [
+        {
+          "id": "conformance",
+          "name": "Conformance",
+          "description": "Scripted conformance agent.",
+          "tags": [
+            "conformance"
+          ]
+        }
+      ]
+    }
+  },
+  "expect": {
+    "kind": "card",
+    "checks": [
+      {
+        "path": "$.name",
+        "equals": "Conformance Agent"
+      },
+      {
+        "path": "$.version",
+        "equals": "1.2.3"
+      },
+      {
+        "path": "$.supportedInterfaces[0].protocolBinding",
+        "equals": "JSONRPC"
+      }
+    ]
+  },
+  "tags": [
+    "discovery",
+    "v1.0"
+  ]
+}

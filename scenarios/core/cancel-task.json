@@ -1,0 +1,38 @@
+{
+  "id": "core/cancel-task",
+  "title": "CancelTask returns the task in canceled state",
+  "spec": "§3.1.5, §9.4.5",
+  "client": {
+    "op": "CancelTask",
+    "params": {
+      "id": "t-c1"
+    }
+  },
+  "server": {
+    "respond": {
+      "id": "t-c1",
+      "contextId": "c-1",
+      "status": {
+        "state": "TASK_STATE_CANCELED",
+        "timestamp": "2026-01-01T00:00:02.000Z"
+      }
+    }
+  },
+  "expect": {
+    "kind": "result",
+    "checks": [
+      {
+        "path": "$.id",
+        "equals": "t-c1"
+      },
+      {
+        "path": "$.status.state",
+        "equals": "TASK_STATE_CANCELED"
+      }
+    ]
+  },
+  "tags": [
+    "core",
+    "v1.0"
+  ]
+}

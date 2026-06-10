@@ -1,0 +1,129 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/arkavo-ai/a2a-conformance/schema/scenario.schema.json",
+  "title": "A2A conformance scenario",
+  "type": "object",
+  "required": ["id", "title", "spec", "client", "expect", "tags"],
+  "additionalProperties": false,
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^(core|streaming|errors|discovery|edge)/[a-z0-9-]+$",
+      "description": "Scenario ID; must match its file path (<dir>/<name>.json)."
+    },
+    "title": { "type": "string" },
+    "spec": { "type": "string", "description": "A2A spec section reference(s), e.g. \"§3.1.1, §9.4.1\"." },
+    "client": {
+      "type": "object",
+      "required": ["op"],
+      "additionalProperties": false,
+      "properties": {
+        "op": {
+          "enum": [
+            "SendMessage", "SendStreamingMessage", "GetTask", "ListTasks", "CancelTask",
+            "SubscribeToTask", "CreateTaskPushNotificationConfig", "GetExtendedAgentCard",
+            "ResolveCard", "SelectInterface", "RawRequest"
+          ],
+          "description": "PascalCase JSON-RPC method (spec §5.3) executed through the SDK's native API, or a conformance pseudo-op: ResolveCard (fetch well-known card), SelectInterface (resolve card + report which interface the SDK selects), RawRequest (POST rawBody verbatim, bypassing the SDK — used only to probe server envelope handling)."
+        },
+        "params": {
+          "description": "Literal JSON-RPC params for the op (wire format, camelCase)."
+        },
+        "rawBody": {
+          "type": "string",
+          "description": "For op=RawRequest only: the literal HTTP body to POST."
+        }
+      }
+    },
+    "server": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Scripted server behavior for this scenario. Omit for RawRequest scenarios (the server SDK's envelope layer is the system under test).",
+      "properties": {
+        "respond": {
+          "description": "Literal result object (wire format) the scripted handler returns for the scenario's op."
+        },
+        "error": {
+          "type": "object",
+          "required": ["code", "message"],
+          "additionalProperties": false,
+          "properties": {
+            "code": { "type": "integer" },
+            "message": { "type": "string" },
+            "data": {}
+          },
+          "description": "Protocol error the scripted handler raises instead of responding."
+        },
+        "sse": {
+          "type": "array",
+          "items": {},
+          "description": "Ordered StreamResponse payloads (wire format) for streaming ops."
+        },
+        "card": {
+          "description": "Agent card (wire format) served at /.well-known/agent-card.json while this scenario is selected. Interface URLs use the placeholder {{baseUrl}}, substituted by the harness."
+        },
+        "rawResult": {
+          "type": "string",
+          "description": "Escape hatch: literal JSON text the harness injects as the result without going through SDK types. Used only by edge/ scenarios that must emit wire shapes SDK types cannot express (e.g. unknown fields). Harnesses that cannot inject raw results report skip."
+        }
+      }
+    },
+    "expect": {
+      "type": "object",
+      "required": ["kind"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": { "enum": ["result", "error", "stream", "card", "interface"] },
+        "checks": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/check" },
+          "description": "Evaluated by the runner against the harness-normalized outcome (the SDK-decoded value re-encoded to wire JSON — so lenient/strict decode behavior is what is tested)."
+        },
+        "errorCode": { "type": ["integer", "null"] },
+        "streamOrder": {
+          "type": ["array", "null"],
+          "items": { "enum": ["task", "message", "statusUpdate", "artifactUpdate"] },
+          "description": "Exact ordered list of event kinds the client must observe before stream end."
+        }
+      }
+    },
+    "expectRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "checks": { "type": "array", "items": { "$ref": "#/$defs/check" } }
+      },
+      "description": "Checks the runner evaluates against the captured wire request body (from the capture proxy) — used to verify what the client SDK actually sent, e.g. tenant echoing."
+    },
+    "tags": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+    "appliesTo": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "clients": { "$ref": "#/$defs/implSelector" },
+        "servers": { "$ref": "#/$defs/implSelector" }
+      },
+      "description": "Restrict the scenario to specific implementations; cells outside the selection report n/a, not fail."
+    }
+  },
+  "$defs": {
+    "implSelector": {
+      "oneOf": [
+        { "const": "*" },
+        { "type": "array", "items": { "type": "string" } }
+      ]
+    },
+    "check": {
+      "type": "object",
+      "required": ["path"],
+      "additionalProperties": false,
+      "properties": {
+        "path": { "type": "string", "description": "Simplified JSONPath: $.a.b[0].c" },
+        "equals": { "description": "Value at path must deep-equal this." },
+        "exists": { "type": "boolean" },
+        "count": { "type": "integer", "description": "Value at path must be an array of exactly this length." },
+        "contains": { "type": "string", "description": "Value at path must be a string containing this substring." }
+      }
+    }
+  }
+}

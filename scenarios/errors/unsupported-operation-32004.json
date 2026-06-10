@@ -1,0 +1,25 @@
+{
+  "id": "errors/unsupported-operation-32004",
+  "title": "SubscribeToTask surfaces UnsupportedOperationError (-32004) to the caller",
+  "spec": "§5.4, §3.1.6",
+  "client": {
+    "op": "SubscribeToTask",
+    "params": {
+      "id": "t-terminal"
+    }
+  },
+  "server": {
+    "error": {
+      "code": -32004,
+      "message": "This operation is not supported"
+    }
+  },
+  "expect": {
+    "kind": "error",
+    "errorCode": -32004
+  },
+  "tags": [
+    "errors",
+    "v1.0"
+  ]
+}

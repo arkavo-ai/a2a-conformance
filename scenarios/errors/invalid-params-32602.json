@@ -1,0 +1,18 @@
+{
+  "id": "errors/invalid-params-32602",
+  "title": "GetTask with missing required id yields -32602 from the server SDK",
+  "spec": "§9.5",
+  "client": {
+    "op": "RawRequest",
+    "rawBody": "{\"jsonrpc\":\"2.0\",\"id\":602,\"method\":\"GetTask\",\"params\":{}}"
+  },
+  "expect": {
+    "kind": "error",
+    "errorCode": -32602
+  },
+  "tags": [
+    "errors",
+    "v1.0",
+    "raw"
+  ]
+}

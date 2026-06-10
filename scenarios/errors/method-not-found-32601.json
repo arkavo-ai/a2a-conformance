@@ -1,0 +1,18 @@
+{
+  "id": "errors/method-not-found-32601",
+  "title": "Unknown JSON-RPC method yields -32601 from the server SDK's envelope layer",
+  "spec": "§9.5",
+  "client": {
+    "op": "RawRequest",
+    "rawBody": "{\"jsonrpc\":\"2.0\",\"id\":601,\"method\":\"NoSuchMethod\",\"params\":{}}"
+  },
+  "expect": {
+    "kind": "error",
+    "errorCode": -32601
+  },
+  "tags": [
+    "errors",
+    "v1.0",
+    "raw"
+  ]
+}

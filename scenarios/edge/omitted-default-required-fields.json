@@ -1,0 +1,54 @@
+{
+  "id": "edge/omitted-default-required-fields",
+  "title": "Card whose interface omits protocolVersion (proto3 default omission) still decodes and selects",
+  "spec": "§5.7 vs. proto3 JSON serializer behavior (found in a2a-swift <-> a2a-python interop)",
+  "client": {
+    "op": "SelectInterface"
+  },
+  "server": {
+    "card": {
+      "name": "Proto3 Canonical Agent",
+      "description": "Serialized by a proto3-canonical encoder: default-valued fields omitted.",
+      "version": "1.0.0",
+      "supportedInterfaces": [
+        {
+          "url": "{{baseUrl}}",
+          "protocolBinding": "JSONRPC"
+        }
+      ],
+      "capabilities": {
+        "streaming": true
+      },
+      "defaultInputModes": [
+        "text/plain"
+      ],
+      "defaultOutputModes": [
+        "text/plain"
+      ],
+      "skills": [
+        {
+          "id": "conformance",
+          "name": "Conformance",
+          "description": "Scripted conformance agent.",
+          "tags": [
+            "conformance"
+          ]
+        }
+      ]
+    }
+  },
+  "expect": {
+    "kind": "interface",
+    "checks": [
+      {
+        "path": "$.protocolBinding",
+        "equals": "JSONRPC"
+      }
+    ]
+  },
+  "tags": [
+    "edge",
+    "v1.0",
+    "lenient-decode"
+  ]
+}

@@ -1,0 +1,33 @@
+{
+  "id": "errors/extension-support-required-32008",
+  "title": "SendMessage surfaces ExtensionSupportRequiredError (-32008) to the caller",
+  "spec": "§5.4, §4.6",
+  "client": {
+    "op": "SendMessage",
+    "params": {
+      "message": {
+        "messageId": "m-1",
+        "role": "ROLE_USER",
+        "parts": [
+          {
+            "text": "needs extension"
+          }
+        ]
+      }
+    }
+  },
+  "server": {
+    "error": {
+      "code": -32008,
+      "message": "Extension support required"
+    }
+  },
+  "expect": {
+    "kind": "error",
+    "errorCode": -32008
+  },
+  "tags": [
+    "errors",
+    "v1.0"
+  ]
+}

@@ -1,0 +1,64 @@
+{
+  "id": "core/send-message-returns-task",
+  "title": "SendMessage where the agent opens a task",
+  "spec": "§3.1.1, §9.4.1",
+  "client": {
+    "op": "SendMessage",
+    "params": {
+      "message": {
+        "messageId": "m-1",
+        "role": "ROLE_USER",
+        "parts": [
+          {
+            "text": "run the report"
+          }
+        ]
+      }
+    }
+  },
+  "server": {
+    "respond": {
+      "task": {
+        "id": "t-smrt-1",
+        "contextId": "c-1",
+        "status": {
+          "state": "TASK_STATE_COMPLETED",
+          "timestamp": "2026-01-01T00:00:00.000Z"
+        },
+        "artifacts": [
+          {
+            "artifactId": "a-1",
+            "name": "report",
+            "parts": [
+              {
+                "text": "report finished",
+                "mediaType": "text/plain"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "expect": {
+    "kind": "result",
+    "checks": [
+      {
+        "path": "$.task.id",
+        "equals": "t-smrt-1"
+      },
+      {
+        "path": "$.task.status.state",
+        "equals": "TASK_STATE_COMPLETED"
+      },
+      {
+        "path": "$.task.artifacts[0].parts[0].text",
+        "equals": "report finished"
+      }
+    ]
+  },
+  "tags": [
+    "core",
+    "v1.0"
+  ]
+}

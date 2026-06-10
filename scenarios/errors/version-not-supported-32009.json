@@ -1,0 +1,33 @@
+{
+  "id": "errors/version-not-supported-32009",
+  "title": "SendMessage surfaces VersionNotSupportedError (-32009) to the caller",
+  "spec": "§5.4, §6.4",
+  "client": {
+    "op": "SendMessage",
+    "params": {
+      "message": {
+        "messageId": "m-1",
+        "role": "ROLE_USER",
+        "parts": [
+          {
+            "text": "hello"
+          }
+        ]
+      }
+    }
+  },
+  "server": {
+    "error": {
+      "code": -32009,
+      "message": "Protocol version not supported"
+    }
+  },
+  "expect": {
+    "kind": "error",
+    "errorCode": -32009
+  },
+  "tags": [
+    "errors",
+    "v1.0"
+  ]
+}
