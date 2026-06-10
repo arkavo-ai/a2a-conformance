@@ -23,6 +23,10 @@
 //    number here would be fabricated.
 
 import Foundation
+
+#if canImport(FoundationNetworking)
+    import FoundationNetworking
+#endif
 // The product is module-aliased in Package.swift to avoid colliding with the
 // server graph's a2a-client-swift target; within this target the module is
 // still referred to by its original name.

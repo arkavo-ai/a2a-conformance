@@ -161,9 +161,13 @@ try await withThrowingTaskGroup(of: Void.self) { group in
             if let a2aPort, let controlPort {
                 let line =
                     "READY {\"port\": \(a2aPort), \"controlPort\": \(controlPort), "
-                    + "\"baseUrl\": \"http://127.0.0.1:\(a2aPort)\"}"
-                print(line)
-                fflush(stdout)
+                    + "\"baseUrl\": \"http://127.0.0.1:\(a2aPort)\"}\n"
+                // FileHandle writes are unbuffered syscalls: no fflush needed.
+                // (fflush(nil) deadlocks against the stdin-EOF watcher thread,
+                // which holds stdin's stream lock while blocked in readLine;
+                // referencing the stdout global is a strict-concurrency error
+                // on Linux.)
+                FileHandle.standardOutput.write(Data(line.utf8))
                 break
             }
         }

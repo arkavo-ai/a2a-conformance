@@ -16,6 +16,10 @@
 // because the SDK logs through swift-log which defaults to stdout).
 
 import Foundation
+
+#if canImport(FoundationNetworking)
+    import FoundationNetworking
+#endif
 import A2AServer
 import Hummingbird
 import Logging

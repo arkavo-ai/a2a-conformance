@@ -8,6 +8,10 @@ import A2A
 import A2AClient
 import Foundation
 
+#if canImport(FoundationNetworking)
+    import FoundationNetworking
+#endif
+
 let implName = "arkavo-swift"
 let implVersion = "0.1.0"
 
@@ -316,11 +320,11 @@ func emit(scenario: String, outcome: JSONValue, durationMs: Double) {
         FileHandle.standardOutput.write(Data("\n".utf8))
     } catch {
         // Last-resort fallback; keeps the runner from hanging on a lost line.
-        print(
+        let fallback =
             "{\"scenario\": \"\(scenario)\", \"outcome\": {\"kind\": \"harness-error\", "
-                + "\"detail\": \"outcome encode failed\"}, \"durationMs\": 0, "
-                + "\"impl\": {\"name\": \"\(implName)\", \"version\": \"\(implVersion)\"}}")
-        fflush(stdout)
+            + "\"detail\": \"outcome encode failed\"}, \"durationMs\": 0, "
+            + "\"impl\": {\"name\": \"\(implName)\", \"version\": \"\(implVersion)\"}}\n"
+        FileHandle.standardOutput.write(Data(fallback.utf8))
     }
 }
 
