@@ -55,10 +55,18 @@ jobs:
       # No --baseline yet: the committed baseline is macOS-generated, and
       # Darwin-vs-corelibs divergence is expected signal. Once a Linux run is
       # reviewed, commit reports/baseline-linux.ndjson and gate on it here.
+      #
+      # tolgaki-swift is excluded on Linux: its server stack does not compile
+      # there (a2a-client-swift 1.0.22 lacks FoundationNetworking imports) —
+      # recorded as finding 10 in FINDINGS.md.
       - name: Run matrix
         run: |
           cargo build --release --manifest-path runner/Cargo.toml
-          ./runner/target/release/a2a-conformance-runner run --report reports-ci
+          ./runner/target/release/a2a-conformance-runner run --report reports-ci \
+            --cell client=rust-a2a,server=rust-a2a \
+            --cell client=rust-a2a,server=arkavo-swift \
+            --cell client=arkavo-swift,server=rust-a2a \
+            --cell client=arkavo-swift,server=arkavo-swift
       - name: Upload reports
         if: always()
         uses: actions/upload-artifact@v4

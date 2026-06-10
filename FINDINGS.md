@@ -19,6 +19,8 @@ Versions: `a2aproject/a2a-rs @ 7676ec9f` · `arkavo-ai/a2a-swift 0.1.1` (initial
 7. **Server maps undecodable params to −32603** (internal error) instead of −32602 (invalid params).
 8. **Server gates `GetExtendedAgentCard` behind authentication with an off-spec −32010 code**; spec defines −32007 for the unconfigured case and no −32010 anywhere.
 
+Additionally (build-level, found by CI rather than the matrix): **the server stack does not compile on Linux** — its `a2a-client-swift` 1.0.22 dependency lacks `FoundationNetworking` imports, so `HTTPURLResponse`/`URLSession` are unresolved on corelibs-foundation. (The newer `tolgaki/a2a-swift` client repo does have Linux CI; the server's pinned dependency predates it.) The Linux leg of this repo's CI therefore runs the rust-a2a × arkavo-swift 2×2 only.
+
 ## arkavo-ai/a2a-swift
 
 9. **Streaming client dropped plain-JSON error envelopes** (same defect class as finding 3): a plain-JSON error answering a streaming request read as an empty, successfully-closed stream. Found by this matrix against a2a-rs in 0.1.0; **fixed in [a2a-swift 0.1.1](https://github.com/arkavo-ai/a2a-swift/releases/tag/0.1.1)** — `errors/unsupported-operation-32004` vs a2a-rs is now green, which is also the harness's first end-to-end find→fix→verify loop.
