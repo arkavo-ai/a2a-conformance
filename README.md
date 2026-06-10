@@ -15,7 +15,7 @@ Self-cells run as sanity checks but are **not evidence** — self-interop proves
 
 Spec target: **A2A v1.0.1, JSON-RPC binding.**
 
-Latest snapshot (2026-06-10, macOS): **195 pass / 42 fail / 24 skip / 0 harness errors** over 29 scenarios × 9 cells — deterministic across reruns. All 42 failures reduce to nine root causes, each a real SDK divergence with wire evidence: see **[FINDINGS.md](FINDINGS.md)** and [reports/matrix.md](reports/matrix.md).
+Latest snapshot (2026-06-10, macOS): **196 pass / 41 fail / 24 skip / 0 harness errors** over 29 scenarios × 9 cells — deterministic across reruns. All failures reduce to nine root causes, each a real SDK divergence with wire evidence: see **[FINDINGS.md](FINDINGS.md)** and [reports/matrix.md](reports/matrix.md). One root cause (a streaming-error bug in arkavo a2a-swift, found by this matrix) is already fixed and verified green in 0.1.1 — the find→fix→verify loop works end to end.
 
 | implementation | client | server |
 |---|---|---|

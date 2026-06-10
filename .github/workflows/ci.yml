@@ -44,8 +44,11 @@ jobs:
     container: swift:6.3
     steps:
       - uses: actions/checkout@v4
+      - name: Install build tools
+        run: apt-get update && apt-get install -y curl build-essential
       - name: Install Rust
         run: |
+          set -o pipefail
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
           echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
       # No --baseline yet: the committed baseline is macOS-generated, and

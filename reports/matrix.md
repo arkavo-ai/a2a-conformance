@@ -22,7 +22,7 @@ Cell format: `pass/applicable` (skip = harness reported unsupported; n/a = exclu
 
 | client \ server | arkavo-swift | rust-a2a | tolgaki-swift |
 |---|---|---|---|
-| **arkavo-swift** | [✅ 11/11](cells/arkavo-swift--arkavo-swift.md) (self) | [❌ 10/11](cells/arkavo-swift--rust-a2a.md) | [❌ 7/9 +2skip](cells/arkavo-swift--tolgaki-swift.md) |
+| **arkavo-swift** | [✅ 11/11](cells/arkavo-swift--arkavo-swift.md) (self) | [✅ 11/11](cells/arkavo-swift--rust-a2a.md) | [❌ 7/9 +2skip](cells/arkavo-swift--tolgaki-swift.md) |
 | **rust-a2a** | [✅ 11/11](cells/rust-a2a--arkavo-swift.md) | [❌ 10/11](cells/rust-a2a--rust-a2a.md) (self) | [❌ 7/9 +2skip](cells/rust-a2a--tolgaki-swift.md) |
 | **tolgaki-swift** | [❌ 10/11](cells/tolgaki-swift--arkavo-swift.md) | [❌ 5/11](cells/tolgaki-swift--rust-a2a.md) | [❌ 8/9 +2skip](cells/tolgaki-swift--tolgaki-swift.md) (self) |
 

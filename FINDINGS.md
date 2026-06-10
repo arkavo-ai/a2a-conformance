@@ -1,7 +1,7 @@
 # Findings — initial 3×3 matrix run (2026-06-10, macOS)
 
-29 scenarios × 9 cells = 261 results: **195 pass / 42 fail / 24 skip / 0 harness errors.**
-All 42 failures decompose into the nine root causes below — every one a real SDK behavior, none a harness artifact. Raw evidence: `reports/results.ndjson` (failures carry wire captures), per-cell detail in `reports/cells/`.
+29 scenarios × 9 cells = 261 results: **196 pass / 41 fail / 24 skip / 0 harness errors** (with arkavo a2a-swift 0.1.1; the initial run against 0.1.0 was 195/42 — see finding 9).
+All failures decompose into the nine root causes below — every one a real SDK behavior, none a harness artifact. Raw evidence: `reports/results.ndjson` (failures carry wire captures), per-cell detail in `reports/cells/`.
 
 Versions: `a2aproject/a2a-rs @ 7676ec9f` · `arkavo-ai/a2a-swift 0.1.0` · `tolgaki/a2a-swift @ 5b0afd92` + `tolgaki/a2a-swift-server @ 0a1db4f7`.
 
@@ -21,7 +21,7 @@ Versions: `a2aproject/a2a-rs @ 7676ec9f` · `arkavo-ai/a2a-swift 0.1.0` · `tolg
 
 ## arkavo-ai/a2a-swift
 
-9. **Streaming client ignores Content-Type on error responses.** When a server answers a streaming request with a plain-JSON error envelope (as a2a-rs does), the SSE parser sees no `data:` lines and the client yields an empty, successfully-closed stream instead of surfacing the error — the same defect class as finding 3. Fails `errors/unsupported-operation-32004` against a2a-rs. *Fix planned in a2a-swift.*
+9. **Streaming client dropped plain-JSON error envelopes** (same defect class as finding 3): a plain-JSON error answering a streaming request read as an empty, successfully-closed stream. Found by this matrix against a2a-rs in 0.1.0; **fixed in [a2a-swift 0.1.1](https://github.com/arkavo-ai/a2a-swift/releases/tag/0.1.1)** — `errors/unsupported-operation-32004` vs a2a-rs is now green, which is also the harness's first end-to-end find→fix→verify loop.
 
 ## Spec gap worth raising upstream
 
