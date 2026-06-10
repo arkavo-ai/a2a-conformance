@@ -13,7 +13,9 @@ Self-cells run as sanity checks but are **not evidence** — self-interop proves
 
 ## Current matrix
 
-Spec target: **A2A v1.0.1, JSON-RPC binding.** See `reports/matrix.md` for the latest committed snapshot.
+Spec target: **A2A v1.0.1, JSON-RPC binding.**
+
+Latest snapshot (2026-06-10, macOS): **195 pass / 42 fail / 24 skip / 0 harness errors** over 29 scenarios × 9 cells — deterministic across reruns. All 42 failures reduce to nine root causes, each a real SDK divergence with wire evidence: see **[FINDINGS.md](FINDINGS.md)** and [reports/matrix.md](reports/matrix.md).
 
 | implementation | client | server |
 |---|---|---|

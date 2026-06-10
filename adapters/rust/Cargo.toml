@@ -17,13 +17,13 @@ path = "src/bin/client_harness.rs"
 [dependencies]
 # Local clone for now; flip to crates.io once published:
 #   a2a = { package = "a2a-lf", version = "0.3" }
-a2a = { package = "a2a-lf", path = "/tmp/a2a-rs/a2a" }
+a2a = { package = "a2a-lf", git = "https://github.com/a2aproject/a2a-rs.git", rev = "7676ec9f2ef53a0daafb08d8ea0d4436e3075078" }
 #   a2a-client = { package = "a2a-client-lf", version = "0.2", default-features = false }
-a2a-client = { package = "a2a-client-lf", path = "/tmp/a2a-rs/a2a-client", default-features = false }
+a2a-client = { package = "a2a-client-lf", git = "https://github.com/a2aproject/a2a-rs.git", rev = "7676ec9f2ef53a0daafb08d8ea0d4436e3075078", default-features = false }
 #   a2a-server = { package = "a2a-server-lf", version = "0.4", default-features = false }
-a2a-server = { package = "a2a-server-lf", path = "/tmp/a2a-rs/a2a-server", default-features = false }
+a2a-server = { package = "a2a-server-lf", git = "https://github.com/a2aproject/a2a-rs.git", rev = "7676ec9f2ef53a0daafb08d8ea0d4436e3075078", default-features = false }
 #   a2a-pb = { version = "0.1" }
-a2a-pb = { package = "a2a-pb", path = "/tmp/a2a-rs/a2a-pb" }
+a2a-pb = { package = "a2a-pb", git = "https://github.com/a2aproject/a2a-rs.git", rev = "7676ec9f2ef53a0daafb08d8ea0d4436e3075078" }
 
 async-trait = "0.1"
 axum = "0.8"
