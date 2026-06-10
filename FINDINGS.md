@@ -3,7 +3,7 @@
 29 scenarios × 9 cells = 261 results: **196 pass / 41 fail / 24 skip / 0 harness errors** (with arkavo a2a-swift 0.1.1; the initial run against 0.1.0 was 195/42 — see finding 9).
 All failures decompose into the nine root causes below — every one a real SDK behavior, none a harness artifact. Raw evidence: `reports/results.ndjson` (failures carry wire captures), per-cell detail in `reports/cells/`.
 
-Versions: `a2aproject/a2a-rs @ 7676ec9f` · `arkavo-ai/a2a-swift 0.1.0` · `tolgaki/a2a-swift @ 5b0afd92` + `tolgaki/a2a-swift-server @ 0a1db4f7`.
+Versions: `a2aproject/a2a-rs @ 7676ec9f` · `arkavo-ai/a2a-swift 0.1.1` (initial run: 0.1.0) · `tolgaki/a2a-swift @ 5b0afd92` + `tolgaki/a2a-swift-server @ 0a1db4f7`.
 
 ## a2aproject/a2a-rs
 
