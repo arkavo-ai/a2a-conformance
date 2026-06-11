@@ -232,9 +232,11 @@ dependencies = [
  "aes-gcm",
  "base64",
  "blake3",
+ "getrandom 0.3.4",
  "serde",
  "serde_json",
  "thiserror",
+ "zeroize",
 ]
 
 [[package]]

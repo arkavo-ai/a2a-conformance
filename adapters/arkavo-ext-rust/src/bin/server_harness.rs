@@ -882,7 +882,8 @@ fn arm_tdf(
                 .get("manifest")
                 .cloned()
                 .unwrap_or_else(|| json!({}));
-            let url_part = tdfsdk::make_b3_url_part(&b3hex, public_base_url, manifest_sidecar);
+            let url_part = tdfsdk::make_b3_url_part(&b3hex, public_base_url, manifest_sidecar)
+                .expect("blake3_hex is valid b3 hex");
             vec![url_part, sibling_part()]
         }
         other => return Err(format!("unknown tdf scenario: {other}")),
