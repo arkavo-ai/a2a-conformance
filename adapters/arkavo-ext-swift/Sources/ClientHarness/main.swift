@@ -216,6 +216,15 @@ func performOp(_ input: InputLine) async -> JSONValue {
     if input.scenario.hasPrefix("arkavo/identity/") {
         return await performIdentityOp(input)
     }
+    // WS binding (ws-binding-v1, WS-HARNESS.md): transport selection by
+    // scenario. ws/* drives the SDK WS client; transport-equivalence/* runs the
+    // op over both HTTP and WS and asserts identical decoded results.
+    if input.scenario.hasPrefix("arkavo/ws/") {
+        return await performWSOp(input)
+    }
+    if input.scenario.hasPrefix("arkavo/transport-equivalence/") {
+        return await performTransportEquivalence(input)
+    }
     let transport = makeTransport(timeoutMs: input.timeoutMs)
     do {
         switch input.op {

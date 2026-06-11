@@ -29,12 +29,15 @@ use arkavo_a2a_identity::{
     did_key_from_verifying_key, random_cti, sign_cwt, verify_card,
 };
 use arkavo_a2a_policy::{REJECTION_TYPE_URL, TORG_POLICY_REFUSAL_CODE};
+use arkavo_a2a_ws::{A2AWsClient, WireFormat};
 use base64::Engine;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
+use futures::stream::BoxStream;
 use futures::{FutureExt, StreamExt};
 use serde::Deserialize;
 use serde_json::{Value, json};
 use tokio::io::AsyncBufReadExt;
+use tokio::sync::Mutex as AsyncMutex;
 
 #[path = "../fixtures.rs"]
 mod fixtures;
@@ -42,6 +45,9 @@ use fixtures::{EXTENSION_URI, IdentityFixtures};
 
 const IMPL_NAME: &str = "arkavo-ext-rust";
 const DEFAULT_TIMEOUT_MS: u64 = 30000;
+
+/// Open-form protocol binding for the WebSocket interface (ws-binding-v1 §1).
+const TRANSPORT_PROTOCOL_JSONRPC_WS: &str = "JSONRPC-WS";
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -330,6 +336,327 @@ async fn run_raw_request(input: &InputLine) -> Value {
 }
 
 // ---------------------------------------------------------------------------
+// arkavo-ext: WebSocket binding (ws-binding-v1, WS-HARNESS.md)
+//
+// ws/* and transport-equivalence/* scenarios resolve the card, select its
+// JSONRPC-WS interface, connect the SDK A2AWsClient to the real ws port, and
+// drive the op — emitting the SAME outcome shapes the HTTP path emits. The
+// connection is cached keyed on (baseUrl, codec) and reused across a scenario's
+// sub-ops (multiplexing / re-subscribe); it is torn down when the baseUrl
+// changes (the harness analogue of the runner's next /select).
+// ---------------------------------------------------------------------------
+
+/// The card's JSONRPC-WS interface URL (ws-binding-v1 §1 — interface
+/// selection, exercising the real card-advertised endpoint).
+async fn resolve_ws_url(base_url: &str) -> Result<String, Value> {
+    let resolver = AgentCardResolver::new(None);
+    let card = resolver
+        .resolve(base_url)
+        .await
+        .map_err(|e| outcome_error(None, format!("card resolve failed: {e}")))?;
+    card.supported_interfaces
+        .iter()
+        .find(|i| i.protocol_binding.eq_ignore_ascii_case(TRANSPORT_PROTOCOL_JSONRPC_WS))
+        .map(|i| i.url.clone())
+        .ok_or_else(|| {
+            outcome_error(None, "card has no JSONRPC-WS interface".to_string())
+        })
+}
+
+/// Process-wide cache of one open WS connection, keyed on (ws_url, codec). The
+/// connection multiplexes a scenario's exchanges; it is replaced when the
+/// baseUrl/codec changes (tear-down at the next effective /select). A2AWsClient
+/// is a cheap Arc clone over the shared connection.
+struct WsCache {
+    key: Option<(String, WireFormat)>,
+    client: Option<A2AWsClient>,
+}
+
+static WS_CACHE: std::sync::OnceLock<AsyncMutex<WsCache>> = std::sync::OnceLock::new();
+
+fn ws_cache() -> &'static AsyncMutex<WsCache> {
+    WS_CACHE.get_or_init(|| {
+        AsyncMutex::new(WsCache {
+            key: None,
+            client: None,
+        })
+    })
+}
+
+/// Connect (or reuse a cached) A2AWsClient for `ws_url`, offering `offer`.
+async fn ws_client(ws_url: &str, offer: &[WireFormat]) -> Result<A2AWsClient, Value> {
+    // The cache key pins the negotiated codec too: a scenario that forces a
+    // different offer (subprotocol negotiation) opens a fresh connection.
+    let want_codec = offer.first().copied().unwrap_or(WireFormat::Json);
+    let key = (ws_url.to_string(), want_codec);
+    let mut cache = ws_cache().lock().await;
+    if cache.key.as_ref() == Some(&key)
+        && let Some(client) = &cache.client
+    {
+        return Ok(client.clone());
+    }
+    // New endpoint/codec: drop the old connection, connect a new one.
+    cache.client = None;
+    let client = A2AWsClient::connect(ws_url, offer)
+        .await
+        .map_err(|e| outcome_error(None, format!("ws connect failed: {e}")))?;
+    cache.key = Some(key);
+    cache.client = Some(client.clone());
+    Ok(client)
+}
+
+/// Split a `StreamResponse`-encoded value into the runner's {kind, value} shape.
+fn split_stream_event(encoded: Value) -> Result<Value, Value> {
+    let Some(obj) = encoded.as_object() else {
+        return Err(outcome_harness_error("stream event is not an object".to_string()));
+    };
+    let Some((kind, value)) = obj.iter().next() else {
+        return Err(outcome_harness_error("stream event has no variant key".to_string()));
+    };
+    Ok(json!({"kind": kind, "value": value}))
+}
+
+/// Drain a SDK WS stream into the runner's stream-outcome events list.
+async fn drain_ws_stream(
+    mut stream: BoxStream<'static, Result<StreamResponse, A2AError>>,
+) -> Result<Vec<Value>, Value> {
+    let mut events = Vec::new();
+    while let Some(item) = stream.next().await {
+        match item {
+            Ok(sr) => {
+                let encoded = encode_value(&sr)?;
+                events.push(split_stream_event(encoded)?);
+            }
+            Err(e) => {
+                return Err(outcome_error(
+                    Some(e.code),
+                    format!("stream error after {} events: {}", events.len(), e.message),
+                ));
+            }
+        }
+    }
+    Ok(events)
+}
+
+/// Run one op over a connected A2AWsClient, producing the runner outcome value
+/// (result/stream/error) — the same shapes the HTTP path emits.
+async fn ws_run_op(client: &A2AWsClient, input: &InputLine) -> Value {
+    match input.op.as_str() {
+        "SendMessage" => {
+            let req: SendMessageRequest = match decode_params(&input.params) {
+                Ok(r) => r,
+                Err(o) => return o,
+            };
+            match client.send_message(&req).await {
+                Ok(resp) => match encode_value(&resp) {
+                    Ok(v) => outcome_result(v),
+                    Err(o) => o,
+                },
+                Err(e) => a2a_error(&e),
+            }
+        }
+        "GetTask" => {
+            let req: GetTaskRequest = match decode_params(&input.params) {
+                Ok(r) => r,
+                Err(o) => return o,
+            };
+            match client.get_task(&req).await {
+                Ok(resp) => match encode_value(&resp) {
+                    Ok(v) => outcome_result(v),
+                    Err(o) => o,
+                },
+                Err(e) => a2a_error(&e),
+            }
+        }
+        "SendStreamingMessage" => {
+            let req: SendMessageRequest = match decode_params(&input.params) {
+                Ok(r) => r,
+                Err(o) => return o,
+            };
+            match client.send_streaming_message(&req).await {
+                Ok(stream) => match drain_ws_stream(stream).await {
+                    Ok(events) => json!({"kind": "stream", "events": events}),
+                    Err(o) => o,
+                },
+                Err(e) => a2a_error(&e),
+            }
+        }
+        "SubscribeToTask" => {
+            let req: SubscribeToTaskRequest = match decode_params(&input.params) {
+                Ok(r) => r,
+                Err(o) => return o,
+            };
+            match client.subscribe_to_task(&req).await {
+                Ok(stream) => match drain_ws_stream(stream).await {
+                    Ok(events) => json!({"kind": "stream", "events": events}),
+                    Err(o) => o,
+                },
+                Err(e) => a2a_error(&e),
+            }
+        }
+        other => json!({"kind": "unsupported",
+            "detail": format!("ws path does not support op {other}")}),
+    }
+}
+
+/// Codec offer for a ws scenario. `ws-subprotocol-negotiation` pins the offer
+/// per its variant; everything else takes the SDK default ([cbor, json]) so the
+/// CBOR binary-frame path is exercised wherever the server negotiates it.
+fn ws_offer_for(scenario: &str) -> Vec<WireFormat> {
+    match scenario {
+        // The negotiation scenario offers [cbor, json] (preference order) and
+        // asserts the server selects cbor — the canonical-CBOR binary frame.
+        "arkavo/ws/ws-subprotocol-negotiation" => vec![WireFormat::Cbor, WireFormat::Json],
+        _ => vec![WireFormat::Cbor, WireFormat::Json],
+    }
+}
+
+/// `arkavo/ws/*`: connect via the SDK WS client to the card's JSONRPC-WS
+/// interface, drive the op, emit the HTTP-equivalent outcome shape.
+async fn run_ws(input: &InputLine) -> Value {
+    let ws_url = match resolve_ws_url(&input.base_url).await {
+        Ok(u) => u,
+        Err(o) => return o,
+    };
+    let offer = ws_offer_for(&input.scenario);
+    let client = match ws_client(&ws_url, &offer).await {
+        Ok(c) => c,
+        Err(o) => return o,
+    };
+
+    // ws-subprotocol-negotiation: assert the negotiated codec via the SDK's
+    // exposed format(), then run the op (result).
+    if input.scenario == "arkavo/ws/ws-subprotocol-negotiation" {
+        let negotiated = client.format();
+        if negotiated != WireFormat::Cbor {
+            return outcome_error(
+                None,
+                format!(
+                    "subprotocol negotiation: offered [cbor, json], expected cbor, got {}",
+                    negotiated.subprotocol()
+                ),
+            );
+        }
+        eprintln!(
+            "client-harness: ws negotiated subprotocol {}",
+            negotiated.subprotocol()
+        );
+        return ws_run_op(&client, input).await;
+    }
+
+    // ws-resubscribe-same-socket: subscribe, consume, then re-subscribe on the
+    // SAME live socket with a fresh id (ws-binding-v1 §3). Emit the second run.
+    if input.scenario == "arkavo/ws/ws-resubscribe-same-socket" {
+        let first = ws_run_op(&client, input).await;
+        if first["kind"] != "stream" {
+            return first; // surface the failure as-is
+        }
+        eprintln!("client-harness: ws re-subscribing on the same socket (fresh id)");
+        return ws_run_op(&client, input).await;
+    }
+
+    // ws-concurrent-streams-multiplexed: open TWO streaming exchanges on one
+    // connection concurrently; both must complete in per-id order. Emit the
+    // first stream's outcome (both share the scenario's expected order).
+    if input.scenario == "arkavo/ws/ws-concurrent-streams-multiplexed" {
+        let (a, b) = futures::join!(ws_run_op(&client, input), ws_run_op(&client, input));
+        if b["kind"] != "stream" {
+            return b;
+        }
+        return a;
+    }
+
+    ws_run_op(&client, input).await
+}
+
+/// `arkavo/transport-equivalence/*`: run the op over HTTP/JSON AND over WS, and
+/// assert the decoded results are identical in the harness (WS-HARNESS). For
+/// send-message-equivalent, also run a WS/CBOR leg (the canonical binary
+/// frame). The WS run's outcome is emitted; divergence fails the outcome.
+async fn run_transport_equivalence(input: &InputLine) -> Value {
+    // HTTP/JSON leg (the equivalence oracle).
+    let http_outcome = match input.op.as_str() {
+        "SendStreamingMessage" | "SubscribeToTask" => run_streaming(input).await,
+        _ => run_op_http_unary(input).await,
+    };
+    let comparable_http = comparable_outcome(&http_outcome);
+
+    let ws_url = match resolve_ws_url(&input.base_url).await {
+        Ok(u) => u,
+        Err(o) => return o,
+    };
+
+    // WS legs: JSON first (always), then CBOR when negotiable (the binary
+    // canonical-CBOR frame path) — for the unary send-message case.
+    let mut ws_outcome = Value::Null;
+    let legs: &[(&str, WireFormat)] = match input.op.as_str() {
+        "SendMessage" => &[("ws/json", WireFormat::Json), ("ws/cbor", WireFormat::Cbor)],
+        _ => &[("ws/json", WireFormat::Json)],
+    };
+    for (label, codec) in legs {
+        let client = match ws_client(&ws_url, &[*codec]).await {
+            Ok(c) => c,
+            Err(o) => return o,
+        };
+        if client.format() != *codec {
+            return outcome_error(
+                None,
+                format!(
+                    "transport-equivalence {label}: server did not negotiate {}",
+                    codec.subprotocol()
+                ),
+            );
+        }
+        let outcome = ws_run_op(&client, input).await;
+        let comparable_ws = comparable_outcome(&outcome);
+        if comparable_ws != comparable_http {
+            return outcome_error(
+                None,
+                format!(
+                    "transport-equivalence divergence ({label} vs http/json): {comparable_ws} != {comparable_http}"
+                ),
+            );
+        }
+        eprintln!(
+            "client-harness: transport-equivalence {label} ({}) ≡ http/json",
+            codec.subprotocol()
+        );
+        ws_outcome = outcome;
+    }
+    ws_outcome
+}
+
+/// The part of an outcome that must be byte-identical across transports: the
+/// decoded result value, or the ordered stream event list. Error/harness
+/// outcomes compare whole (a divergence there is itself a failure).
+fn comparable_outcome(outcome: &Value) -> Value {
+    match outcome.get("kind").and_then(Value::as_str) {
+        Some("result") => outcome.get("value").cloned().unwrap_or(Value::Null),
+        Some("stream") => outcome.get("events").cloned().unwrap_or(Value::Null),
+        _ => outcome.clone(),
+    }
+}
+
+/// HTTP unary path returning the runner outcome value (mirrors run_unary's
+/// dispatch but reusable from the equivalence oracle).
+async fn run_op_http_unary(input: &InputLine) -> Value {
+    match input.op.as_str() {
+        "SendMessage" => {
+            run_unary(input, |c, req: SendMessageRequest| async move {
+                c.send_message(&req).await
+            })
+            .await
+        }
+        "GetTask" => {
+            run_unary(input, |c, req: GetTaskRequest| async move { c.get_task(&req).await })
+                .await
+        }
+        other => json!({"kind": "unsupported",
+            "detail": format!("transport-equivalence http oracle: unsupported op {other}")}),
+    }
+}
+
+// ---------------------------------------------------------------------------
 // arkavo-ext: scenario-keyed identity ops (IDENTITY-HARNESS.md)
 // ---------------------------------------------------------------------------
 
@@ -533,6 +860,15 @@ async fn run_op(input: &InputLine) -> Value {
     // scenario ids.
     if input.scenario.starts_with("arkavo/identity/") {
         return run_identity(input).await;
+    }
+    // WS binding (ws-binding-v1, WS-HARNESS.md): transport selection by
+    // scenario. ws/* drives the SDK WS client; transport-equivalence/* runs the
+    // op over both HTTP and WS and asserts identical decoded results.
+    if input.scenario.starts_with("arkavo/ws/") {
+        return run_ws(input).await;
+    }
+    if input.scenario.starts_with("arkavo/transport-equivalence/") {
+        return run_transport_equivalence(input).await;
     }
     match input.op.as_str() {
         "SendMessage" => {
