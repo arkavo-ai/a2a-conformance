@@ -29,6 +29,7 @@ use arkavo_a2a_identity::{
     did_key_from_verifying_key, random_cti, sign_cwt, verify_card,
 };
 use arkavo_a2a_policy::{REJECTION_TYPE_URL, TORG_POLICY_REFUSAL_CODE};
+use arkavo_a2a_iroh::{A2AIrohClient, parse_node_addr};
 use arkavo_a2a_ws::{A2AWsClient, WireFormat};
 use base64::Engine;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
@@ -1119,6 +1120,230 @@ async fn run_b3(enc_part: &Part, dek: &tdfsdk::Dek, sibling: &str) -> Result<Val
     }))
 }
 
+// ---------------------------------------------------------------------------
+// arkavo-ext: iroh discovery (iroh-discovery-v1, IROH-HARNESS.md)
+//
+// Transport selection by impl: the Rust ext client runs arkavo/discovery/* over
+// NATIVE iroh (rs↔rs), dialing the iroh endpoint directly. The dialable node
+// address arrives in the HTTP-resolved card's iroh-discovery extension params as
+// the test-only `nodeAddr` (the runner forwards only baseUrl; iroh:// has no
+// direct addresses under the hermetic no-discovery topology). For
+// relay-fallback-equivalence the op also runs through the relay gateway and the
+// decoded results are compared byte-identically in-harness.
+// ---------------------------------------------------------------------------
+
+const IROH_DISCOVERY_EXTENSION_URI: &str = "https://arkavo.social/ext/a2a/iroh-discovery/v1";
+
+/// The iroh-discovery extension params from the HTTP-resolved card:
+/// `(nodeId, gateway, nodeAddr)`. `nodeAddr` is the test-only dialable carriage
+/// (IROH-HARNESS.md); `gateway` is the relay base.
+struct IrohParams {
+    node_id: String,
+    gateway: String,
+    node_addr: String,
+}
+
+/// Resolve the card over HTTP and read the iroh-discovery extension params.
+async fn resolve_iroh_params(base_url: &str) -> Result<(AgentCard, IrohParams), Value> {
+    let resolver = AgentCardResolver::new(None);
+    let card = resolver
+        .resolve(base_url)
+        .await
+        .map_err(|e| outcome_error(None, format!("card resolve failed: {e}")))?;
+    let ext = card
+        .capabilities
+        .extensions
+        .as_ref()
+        .and_then(|exts| exts.iter().find(|e| e.uri == IROH_DISCOVERY_EXTENSION_URI))
+        .ok_or_else(|| outcome_error(None, "card has no iroh-discovery extension".to_string()))?;
+    let params = ext
+        .params
+        .as_ref()
+        .ok_or_else(|| outcome_error(None, "iroh-discovery extension has no params".to_string()))?;
+    let get = |k: &str| {
+        params
+            .get(k)
+            .and_then(Value::as_str)
+            .map(str::to_string)
+            .ok_or_else(|| outcome_error(None, format!("iroh-discovery params missing {k}")))
+    };
+    let node_id = get("nodeId")?;
+    let gateway = get("gateway")?;
+    let node_addr = get("nodeAddr")?;
+    Ok((card, IrohParams { node_id, gateway, node_addr }))
+}
+
+/// Native dial: connect to the iroh endpoint with the given codec offer.
+async fn iroh_connect(node_addr: &str, offer: &[WireFormat]) -> Result<A2AIrohClient, Value> {
+    let addr = parse_node_addr(node_addr)
+        .map_err(|e| outcome_error(None, format!("bad iroh node addr: {e}")))?;
+    A2AIrohClient::connect(addr, offer)
+        .await
+        .map_err(|e| outcome_error(None, format!("iroh connect failed: {e}")))
+}
+
+/// JCS-ish canonical comparison: serde re-serialization with sorted keys is
+/// enough here (both sides are the same SDK's AgentCard), so compare the
+/// serde_json::Value forms directly.
+fn cards_match(a: &AgentCard, b: &AgentCard) -> bool {
+    serde_json::to_value(a).ok() == serde_json::to_value(b).ok()
+}
+
+/// `arkavo/discovery/card-by-node-id`: resolve the card by NodeId over native
+/// iroh under BOTH ALPNs, assert each matches the HTTP well-known card. Emit the
+/// resolved card (kind=card) for the runner's name check.
+async fn run_discovery_card_by_node_id(input: &InputLine) -> Value {
+    let (http_card, p) = match resolve_iroh_params(&input.base_url).await {
+        Ok(v) => v,
+        Err(o) => return o,
+    };
+
+    // Run under both ALPNs (cbor then json): the resolved card must match the
+    // HTTP card after canonicalization in both codecs.
+    let mut last_card: Option<AgentCard> = None;
+    for codec in [WireFormat::Cbor, WireFormat::Json] {
+        let client = match iroh_connect(&p.node_addr, &[codec]).await {
+            Ok(c) => c,
+            Err(o) => return o,
+        };
+        if client.format() != codec {
+            return outcome_error(
+                None,
+                format!("iroh ALPN negotiation: expected {codec:?}, got {:?}", client.format()),
+            );
+        }
+        let resolved = match client.resolve_card().await {
+            Ok(c) => c,
+            Err(e) => return a2a_error(&e),
+        };
+        if !cards_match(&resolved, &http_card) {
+            return outcome_error(
+                None,
+                format!(
+                    "native iroh card ({codec:?}) does not match HTTP well-known card after canonicalization"
+                ),
+            );
+        }
+        eprintln!(
+            "client-harness: iroh card-by-node-id matched under ALPN {codec:?} (node {})",
+            p.node_id
+        );
+        last_card = Some(resolved);
+    }
+
+    let card = last_card.unwrap_or(http_card);
+    match serde_json::to_value(&card) {
+        Ok(v) => json!({"kind": "card", "value": v}),
+        Err(e) => outcome_harness_error(format!("failed to re-encode card: {e}")),
+    }
+}
+
+/// `arkavo/discovery/relay-fallback-equivalence`: run the op natively over iroh
+/// AND through the relay gateway, assert byte-identical decoded results, and
+/// emit the (shared) result.
+async fn run_discovery_relay_equivalence(input: &InputLine) -> Value {
+    if input.op != "SendMessage" {
+        return json!({"kind": "unsupported",
+            "detail": format!("relay-fallback-equivalence is pinned to SendMessage, got {}", input.op)});
+    }
+    let (_card, p) = match resolve_iroh_params(&input.base_url).await {
+        Ok(v) => v,
+        Err(o) => return o,
+    };
+    let req: SendMessageRequest = match decode_params(&input.params) {
+        Ok(r) => r,
+        Err(o) => return o,
+    };
+
+    // Native leg: dial iroh, send the message, encode the response.
+    let native_client = match iroh_connect(&p.node_addr, &[WireFormat::Cbor, WireFormat::Json]).await {
+        Ok(c) => c,
+        Err(o) => return o,
+    };
+    let native_resp = match native_client.send_message(&req).await {
+        Ok(r) => r,
+        Err(e) => return a2a_error(&e),
+    };
+    let native_value = match encode_value(&native_resp) {
+        Ok(v) => v,
+        Err(o) => return o,
+    };
+
+    // Relay leg: POST the JSON-RPC request to <gateway>/<nodeId>/ (the node
+    // base, iroh-discovery-v1 §5) and decode the response through the SDK.
+    let relay_value = match relay_send_message(&p, &req).await {
+        Ok(v) => v,
+        Err(o) => return o,
+    };
+
+    if native_value != relay_value {
+        return outcome_error(
+            None,
+            format!(
+                "relay-fallback divergence: native iroh result != relay result ({native_value} != {relay_value})"
+            ),
+        );
+    }
+    eprintln!(
+        "client-harness: relay-fallback-equivalence native iroh ≡ relay (node {})",
+        p.node_id
+    );
+    outcome_result(native_value)
+}
+
+/// Run SendMessage through the relay gateway: build the op URL from the
+/// `<gateway>/<nodeId>/` base (the relay client MUST NOT parse a sub-path out of
+/// the card — iroh-discovery-v1 §5), POST the JSON-RPC request, and decode the
+/// SDK response so the decoded result is comparable to the native leg.
+async fn relay_send_message(p: &IrohParams, req: &SendMessageRequest) -> Result<Value, Value> {
+    let params = protojson_conv::to_value(req)
+        .map_err(|e| outcome_harness_error(format!("failed to encode params: {e}")))?;
+    let body = json!({
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "SendMessage",
+        "params": params,
+    });
+    let url = format!("{}/{}/", p.gateway.trim_end_matches('/'), p.node_id);
+    let resp = reqwest::Client::new()
+        .post(&url)
+        .json(&body)
+        .send()
+        .await
+        .map_err(|e| outcome_error(None, format!("relay POST failed: {e}")))?;
+    let envelope: Value = resp
+        .json()
+        .await
+        .map_err(|e| outcome_error(None, format!("relay response not JSON: {e}")))?;
+    if let Some(err) = envelope.get("error") {
+        let code = err.get("code").and_then(Value::as_i64).map(|c| c as i32);
+        let message = err
+            .get("message")
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .to_string();
+        return Err(outcome_error(code, format!("relay returned error: {message}")));
+    }
+    let result = envelope
+        .get("result")
+        .cloned()
+        .ok_or_else(|| outcome_error(None, "relay envelope has no result".to_string()))?;
+    // Decode through the SDK and re-encode so the comparison matches the native
+    // leg's encode_value(SendMessageResponse) output exactly.
+    let decoded: SendMessageResponse = protojson_conv::from_value(result)
+        .map_err(|e| outcome_error(None, format!("relay result decode failed: {e}")))?;
+    encode_value(&decoded)
+}
+
+async fn run_discovery(input: &InputLine) -> Value {
+    match input.scenario.strip_prefix("arkavo/discovery/").unwrap_or("") {
+        "card-by-node-id" => run_discovery_card_by_node_id(input).await,
+        "relay-fallback-equivalence" => run_discovery_relay_equivalence(input).await,
+        other => json!({"kind": "unsupported",
+            "detail": format!("unknown arkavo/discovery scenario: {other}")}),
+    }
+}
+
 async fn run_op(input: &InputLine) -> Value {
     // Scenario-keyed identity behavior lives here in the harness, exactly
     // like the tolgaki harness's loopback seeding: SDK code paths never see
@@ -1140,6 +1365,11 @@ async fn run_op(input: &InputLine) -> Value {
     }
     if input.scenario.starts_with("arkavo/transport-equivalence/") {
         return run_transport_equivalence(input).await;
+    }
+    // iroh discovery (iroh-discovery-v1, IROH-HARNESS.md): the Rust ext client
+    // runs arkavo/discovery/* over NATIVE iroh (rs↔rs) + the relay leg.
+    if input.scenario.starts_with("arkavo/discovery/") {
+        return run_discovery(input).await;
     }
     match input.op.as_str() {
         "SendMessage" => {
@@ -1223,6 +1453,11 @@ async fn handle_line(line: &str) -> Value {
 
 #[tokio::main]
 async fn main() {
+    // The iroh dep pulls rustls(tls-ring) into the tree, unifying reqwest onto
+    // rustls-no-provider; install the ring crypto provider once so
+    // reqwest::Client construction (and any rustls use) does not panic.
+    let _ = rustls::crypto::ring::default_provider().install_default();
+
     let stdin = tokio::io::BufReader::new(tokio::io::stdin());
     let mut lines = stdin.lines();
     let mut stdout = std::io::stdout();
