@@ -1,0 +1,71 @@
+{
+  "id": "arkavo/discovery/card-by-node-id",
+  "title": "Resolve a card by iroh NodeId via arkavo/ResolveCard (native) or the relay gateway, matching the well-known card. DRAFT STUB — activates when the iroh adapters land; expectations follow the spec's conformance section.",
+  "spec": "specs/arkavo/iroh-discovery-v1.md §4, §7",
+  "client": {
+    "op": "ResolveCard"
+  },
+  "server": {
+    "card": {
+      "name": "Iroh Discovery Agent",
+      "description": "Reachable by iroh node id; advertises the JSONRPC-IROH interface.",
+      "version": "1.0.0",
+      "supportedInterfaces": [
+        {
+          "url": "{{baseUrl}}",
+          "protocolBinding": "JSONRPC",
+          "protocolVersion": "1.0"
+        }
+      ],
+      "capabilities": {
+        "streaming": true,
+        "extensions": [
+          {
+            "uri": "https://arkavo.social/ext/a2a/iroh-discovery/v1",
+            "required": false
+          }
+        ]
+      },
+      "defaultInputModes": [
+        "text/plain"
+      ],
+      "defaultOutputModes": [
+        "text/plain"
+      ],
+      "skills": [
+        {
+          "id": "s",
+          "name": "S",
+          "description": "d",
+          "tags": [
+            "t"
+          ]
+        }
+      ]
+    }
+  },
+  "expect": {
+    "kind": "card",
+    "checks": [
+      {
+        "path": "$.name",
+        "equals": "Iroh Discovery Agent"
+      }
+    ]
+  },
+  "tags": [
+    "arkavo",
+    "discovery",
+    "stub"
+  ],
+  "appliesTo": {
+    "clients": [
+      "arkavo-ext-rust",
+      "arkavo-ext-swift"
+    ],
+    "servers": [
+      "arkavo-ext-rust",
+      "arkavo-ext-swift"
+    ]
+  }
+}

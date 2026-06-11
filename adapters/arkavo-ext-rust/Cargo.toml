@@ -38,6 +38,12 @@ arkavo-a2a-ws = { path = "../../../arkavo-a2a-rs/crates/arkavo-a2a-ws" }
 # fail-closed #error metadata (TDF-HARNESS.md). Scenario-keyed in the harness;
 # the SDK code path stays scenario-blind.
 arkavo-a2a-tdf = { path = "../../../arkavo-a2a-rs/crates/arkavo-a2a-tdf" }
+# Phase 6 iroh discovery (iroh-discovery-v1, IROH-HARNESS.md): the server harness
+# starts an A2AIrohServer (hermetic, over the SAME scripted handler) + a
+# RelayGateway and advertises the iroh interface/extension on the served card;
+# the client harness dials NATIVE iroh for arkavo/discovery/* (rs↔rs) AND runs
+# the relay leg. Pulls iroh (QUIC) transitively; offline build proven.
+arkavo-a2a-iroh = { path = "../../../arkavo-a2a-rs/crates/arkavo-a2a-iroh" }
 
 async-trait = "0.1"
 axum = "0.8"
@@ -45,6 +51,11 @@ base64 = "0.22"
 futures = "0.3"
 p256 = { version = "0.13", features = ["ecdsa", "pem"] }
 reqwest = { version = "0.13", default-features = false, features = ["json"] }
+# Adding the iroh dep pulls iroh's rustls (tls-ring) into the tree, which
+# unifies reqwest onto rustls-no-provider; install the ring provider once at
+# startup so reqwest::Client construction does not panic (HTTPS is unused — the
+# harness talks plain HTTP — but reqwest still requires an installed provider).
+rustls = { version = "0.23", default-features = false, features = ["ring"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "io-std", "io-util", "time"] }

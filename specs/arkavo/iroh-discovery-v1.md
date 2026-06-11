@@ -128,8 +128,16 @@ HTTPS to iroh. Pinned URL shape:
 ```
 https://iroh.arkavo.net/<node-id>/                                  → base for the proxied agent
 https://iroh.arkavo.net/<node-id>/.well-known/agent-card.json       → the agent's card
-https://iroh.arkavo.net/<node-id>/<jsonrpc-endpoint-path>           → standard JSONRPC binding, proxied
+https://iroh.arkavo.net/<node-id>/                                  → standard JSONRPC binding (POST), proxied
 ```
+
+The proxied JSON-RPC endpoint is the **node base** `…/<node-id>/`: the gateway
+accepts the JSON-RPC POST at that path and proxies it over iroh. A relay
+client constructs its op URL from the `<gateway>/<node-id>/` base it resolved
+the card through — it MUST NOT depend on parsing a JSON-RPC sub-path out of the
+card (the card's interface URLs describe the *native* binding). When an agent
+lists a gateway-proxied HTTPS interface first (§5 last paragraph), that
+interface's `url` is this same node base, so both routes converge.
 
 `<node-id>` is the same z-base-32 string as the `iroh://` authority. The
 gateway terminates TLS, dials the node over iroh (ALPN of its choice), and

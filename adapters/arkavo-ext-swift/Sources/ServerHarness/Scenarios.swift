@@ -251,6 +251,14 @@ actor ScenarioState {
         if id.hasPrefix("arkavo/ws/") || id.hasPrefix("arkavo/transport-equivalence/") {
             return (false, "Swift WS server not implemented (client-only this phase)")
         }
+        // Phase 6 iroh discovery (iroh-discovery-v1 §7.4, IROH-HARNESS.md):
+        // Swift has NO native iroh server (native iroh is Rust-first). Any
+        // arkavo/discovery/* cell with server=arkavo-ext-swift is honestly
+        // reported as a skip — the gate is rs↔rs native + swift-client→rust-
+        // server-via-relay. (Same honest-skip pattern as the Swift WS server.)
+        if id.hasPrefix("arkavo/discovery/") {
+            return (false, "Swift has no iroh server; native iroh is Rust-first")
+        }
         // arkavo-ext: scenario-keyed TDF arming (TDF-HARNESS.md). Inject the
         // encrypted part (+ sibling plaintext) into the scripted respond, write
         // the b3 blob payload-first, and serve the default (tdf-advertising)

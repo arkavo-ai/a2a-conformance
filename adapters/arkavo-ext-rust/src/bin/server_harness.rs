@@ -31,6 +31,9 @@ use arkavo_a2a_identity::{CwtVerifier, did_key_url, sign_card};
 use arkavo_a2a_policy::{
     Decision, GateContext, GatedDispatcher, PolicyEvaluator, ReferenceEvaluator, Rejection,
 };
+use arkavo_a2a_iroh::{
+    A2AIrohServer, CardProvider as IrohCardProvider, RelayGateway,
+};
 use arkavo_a2a_ws::A2AWsServer;
 use async_trait::async_trait;
 use axum::extract::State;
@@ -55,6 +58,13 @@ use axum::extract::Path as AxumPath;
 /// A2A §5.8 permits open-form bindings; the standard JSONRPC HTTP interface is
 /// always listed first (degradation contract).
 const TRANSPORT_PROTOCOL_JSONRPC_WS: &str = "JSONRPC-WS";
+
+/// Open-form protocol binding for the iroh interface (iroh-discovery-v1 §1).
+/// Listed AFTER the JSONRPC HTTP and JSONRPC-WS interfaces (degradation order).
+const TRANSPORT_PROTOCOL_JSONRPC_IROH: &str = "JSONRPC-IROH";
+
+/// The iroh-discovery extension URI (iroh-discovery-v1 header).
+const IROH_DISCOVERY_EXTENSION_URI: &str = "https://arkavo.social/ext/a2a/iroh-discovery/v1";
 
 // ---------------------------------------------------------------------------
 // Scenario files (only the parts the server harness needs)
@@ -926,6 +936,20 @@ impl AgentCardProducer for SwappableCard {
     }
 }
 
+/// iroh `arkavo/ResolveCard` card source (iroh-discovery-v1 §4): returns the
+/// SAME currently-served card as the HTTP well-known path, so the native iroh
+/// resolution matches the HTTP card after canonicalization.
+struct IrohSwappableCard {
+    card: Arc<RwLock<AgentCard>>,
+}
+
+#[async_trait]
+impl IrohCardProvider for IrohSwappableCard {
+    async fn card(&self) -> Result<AgentCard, A2AError> {
+        Ok(self.card.read().unwrap().clone())
+    }
+}
+
 /// Append the JSONRPC-WS interface to a card's `supported_interfaces` if not
 /// already present (ws-binding-v1 §1: dual-interface advertisement). The
 /// standard JSONRPC HTTP interface stays first (degradation contract); the WS
@@ -944,6 +968,68 @@ fn advertise_ws_interface(card: &mut AgentCard, ws_base_url: &str) {
     }
 }
 
+/// The iroh advertisement values, constant for the process: the served node id
+/// (z-base-32, the `iroh://` authority), the gateway base URL, and the FULL
+/// serialized node address (`<z32>@<ip:port>,...`).
+///
+/// TEST-ONLY CARRIAGE: the spec's `iroh-discovery` extension params carry only
+/// `{nodeId, gateway}` — `iroh://<nodeId>` has no direct addresses and is
+/// un-dialable under the no-discovery hermetic topology. The runner forwards
+/// only `baseUrl` (it knows nothing of iroh), so the dialable node address
+/// cannot reach the native client out of band. We therefore add a non-spec
+/// `nodeAddr` param (the same string the READY line carries as `irohNodeAddr`)
+/// so the Rust native client can dial the iroh endpoint from card content
+/// alone. Production discovery would supply the direct addresses instead.
+#[derive(Clone)]
+struct IrohAdvert {
+    node_id: String,
+    node_addr: String,
+    gateway_base_url: String,
+}
+
+/// Append the iroh interface + iroh-discovery extension to a card
+/// (iroh-discovery-v1 §1). The JSONRPC HTTP interface stays first and the
+/// JSONRPC-WS interface second (degradation order); the iroh interface
+/// `{url:"iroh://<nodeId>", protocolBinding:"JSONRPC-IROH"}` is appended last.
+/// The extension advertises `{nodeId, gateway, nodeAddr}` (nodeAddr is the
+/// test-only dialable carriage; see [`IrohAdvert`]).
+fn advertise_iroh_interface(card: &mut AgentCard, iroh: &IrohAdvert) {
+    let already = card
+        .supported_interfaces
+        .iter()
+        .any(|i| i.protocol_binding.eq_ignore_ascii_case(TRANSPORT_PROTOCOL_JSONRPC_IROH));
+    if !already {
+        card.supported_interfaces.push(AgentInterface::new(
+            format!("iroh://{}", iroh.node_id),
+            TRANSPORT_PROTOCOL_JSONRPC_IROH,
+        ));
+    }
+    let mut params: HashMap<String, Value> = HashMap::new();
+    params.insert("nodeId".to_string(), json!(iroh.node_id));
+    params.insert("gateway".to_string(), json!(iroh.gateway_base_url));
+    // Test-only dialable carriage (see IrohAdvert docs).
+    params.insert("nodeAddr".to_string(), json!(iroh.node_addr));
+
+    let exts = card
+        .capabilities
+        .extensions
+        .get_or_insert_with(Vec::new);
+    // A scenario card may already list the iroh-discovery extension URI WITHOUT
+    // params (e.g. card-by-node-id); populate its params in place rather than
+    // skipping. Otherwise append a fresh entry.
+    if let Some(existing) = exts.iter_mut().find(|e| e.uri == IROH_DISCOVERY_EXTENSION_URI) {
+        existing.required = Some(false);
+        existing.params = Some(params);
+    } else {
+        exts.push(AgentExtension {
+            uri: IROH_DISCOVERY_EXTENSION_URI.to_string(),
+            description: None,
+            required: Some(false),
+            params: Some(params),
+        });
+    }
+}
+
 /// tdf-parts-v1 §1 advertisement params (schemes REQUIRED; kas/gateway are
 /// deployment knobs, not trust anchors).
 fn tdf_extension_params() -> HashMap<String, Value> {
@@ -954,7 +1040,12 @@ fn tdf_extension_params() -> HashMap<String, Value> {
     p
 }
 
-fn default_card(public_base_url: &str, ws_base_url: &str, fx: &IdentityFixtures) -> AgentCard {
+fn default_card(
+    public_base_url: &str,
+    ws_base_url: &str,
+    iroh: &IrohAdvert,
+    fx: &IdentityFixtures,
+) -> AgentCard {
     // The default card always advertises the aia-identity extension with
     // params.did = serverDid (required: false — degradation contract):
     // cwt-auth-success clients read the aud from here, vanilla peers ignore it.
@@ -1000,6 +1091,7 @@ fn default_card(public_base_url: &str, ws_base_url: &str, fx: &IdentityFixtures)
         signatures: None,
     };
     advertise_ws_interface(&mut card, ws_base_url);
+    advertise_iroh_interface(&mut card, iroh);
     card
 }
 
@@ -1020,6 +1112,8 @@ struct CtrlState {
     ext: Arc<ExtState>,
     /// Test DEKs for the arkavo/tdf/* scenarios (TDF-HARNESS.md).
     tdf_fx: Arc<tdf::TdfFixtures>,
+    /// iroh advertisement values (iroh-discovery-v1 §1, IROH-HARNESS.md).
+    iroh: IrohAdvert,
 }
 
 #[derive(Deserialize)]
@@ -1094,6 +1188,7 @@ async fn handle_select(State(ctrl): State<CtrlState>, Json(body): Json<SelectBod
                 }
                 let mut served = ctrl.default_card.clone();
                 advertise_ws_interface(&mut served, &ctrl.ws_base_url);
+                advertise_iroh_interface(&mut served, &ctrl.iroh);
                 *ctrl.card.write().unwrap() = served;
                 return Json(json!({"ok": true}));
             }
@@ -1116,6 +1211,7 @@ async fn handle_select(State(ctrl): State<CtrlState>, Json(body): Json<SelectBod
             // per-scenario card gets it appended here against the real ws port.
             let mut served = card.unwrap_or_else(|| ctrl.default_card.clone());
             advertise_ws_interface(&mut served, &ctrl.ws_base_url);
+            advertise_iroh_interface(&mut served, &ctrl.iroh);
             *ctrl.card.write().unwrap() = served;
             Json(json!({"ok": true}))
         }
@@ -1156,6 +1252,11 @@ async fn handle_b3(
 
 #[tokio::main]
 async fn main() {
+    // The iroh dep pulls rustls(tls-ring) into the tree, unifying reqwest onto
+    // rustls-no-provider; install the ring crypto provider once so any rustls
+    // use (reqwest control client, iroh QUIC TLS) does not panic.
+    let _ = rustls::crypto::ring::default_provider().install_default();
+
     let mut scenarios_dir: Option<String> = None;
     let mut public_base_url: Option<String> = None;
 
@@ -1236,8 +1337,60 @@ async fn main() {
     let ws_port = ws_server.local_addr().port();
     let ws_base_url = format!("ws://127.0.0.1:{ws_port}/");
 
-    let default = default_card(&public_base_url, &ws_base_url, &ext.fx);
-    let card = Arc::new(RwLock::new(default.clone()));
+    // Phase 6 iroh (iroh-discovery-v1, IROH-HARNESS.md). The swappable card
+    // backs the iroh `arkavo/ResolveCard` provider too, so native iroh resolves
+    // the SAME card as the HTTP well-known path. The iroh server runs over the
+    // SAME scripted handler (PolicyShim) the HTTP/WS paths wrap. The card is
+    // not built yet (it advertises the iroh node id/gateway), so the provider
+    // reads the shared RwLock that handle_select populates.
+    // Placeholder until the real default card (which needs the iroh advert,
+    // which needs this server's node addr) is built below; handle_select always
+    // overwrites this RwLock before any client op, and the iroh provider only
+    // reads it at ResolveCard time (post-select).
+    let placeholder_card = AgentCard {
+        name: "Rust Conformance Harness".to_string(),
+        description: "Scripted a2a-rs server harness.".to_string(),
+        version: "0.1.0".to_string(),
+        supported_interfaces: vec![AgentInterface::new(
+            &public_base_url,
+            TRANSPORT_PROTOCOL_JSONRPC,
+        )],
+        capabilities: AgentCapabilities::default(),
+        default_input_modes: vec!["text/plain".to_string()],
+        default_output_modes: vec!["text/plain".to_string()],
+        skills: vec![],
+        provider: None,
+        documentation_url: None,
+        icon_url: None,
+        security_schemes: None,
+        security_requirements: None,
+        signatures: None,
+    };
+    let card: Arc<RwLock<AgentCard>> = Arc::new(RwLock::new(placeholder_card));
+    let iroh_card_provider = Arc::new(IrohSwappableCard { card: card.clone() });
+    let iroh_server = A2AIrohServer::serve(handler.clone(), iroh_card_provider)
+        .await
+        .expect("bind iroh endpoint");
+    let iroh_node_addr_str = iroh_server.serialized_node_addr();
+    let iroh_node_id = arkavo_a2a_iroh::node_id_z32(&iroh_server.node_addr());
+
+    // The relay gateway (iroh-discovery-v1 §5): a plain HTTP server proxying the
+    // well-known card path + JSONRPC binding to the iroh node. Register the one
+    // node we started so the gateway can dial it (hermetic: no discovery).
+    let gateway = RelayGateway::serve("127.0.0.1:0")
+        .await
+        .expect("bind relay gateway");
+    gateway.register(iroh_server.node_addr()).await;
+    let iroh_gateway_base_url = gateway.base_url();
+
+    let iroh_advert = IrohAdvert {
+        node_id: iroh_node_id,
+        node_addr: iroh_node_addr_str.clone(),
+        gateway_base_url: iroh_gateway_base_url.clone(),
+    };
+
+    let default = default_card(&public_base_url, &ws_base_url, &iroh_advert, &ext.fx);
+    *card.write().unwrap() = default.clone();
 
     let producer = Arc::new(SwappableCard { card: card.clone() });
     // shape-(b) blob route (tdf-parts-v1 §3): GET /b3/<hex> serves the ciphertext
@@ -1264,6 +1417,7 @@ async fn main() {
         ws_base_url: ws_base_url.clone(),
         ext,
         tdf_fx,
+        iroh: iroh_advert,
     };
     let ctrl_app = Router::new()
         .route("/select", post(handle_select))
@@ -1284,6 +1438,13 @@ async fn main() {
         "controlPort": ctrl_port,
         "baseUrl": format!("http://127.0.0.1:{a2a_port}"),
         "wsBaseUrl": ws_base_url,
+        // Phase 6 iroh (IROH-HARNESS.md): the dialable node address and the
+        // relay gateway base. The runner ignores these (it forwards only
+        // baseUrl); the native client dials from the card's iroh-discovery
+        // extension params instead (test-only nodeAddr carriage). Reported here
+        // for parity with the contract and out-of-band debugging.
+        "irohNodeAddr": iroh_node_addr_str,
+        "irohGatewayBaseUrl": iroh_gateway_base_url,
     });
     println!("READY {ready}");
     std::io::stdout().flush().ok();
@@ -1311,8 +1472,11 @@ async fn main() {
         }
     }
 
-    // Keep the WS server alive for the whole process lifetime: dropping it
-    // aborts its accept task. (Unreachable in practice — stdin EOF exits the
-    // process — but this pins the lifetime explicitly for the borrow checker.)
+    // Keep the WS server, the iroh server, and the relay gateway alive for the
+    // whole process lifetime: dropping any aborts its accept/server task.
+    // (Unreachable in practice — stdin EOF exits the process — but this pins the
+    // lifetimes explicitly for the borrow checker.)
     drop(ws_server);
+    drop(iroh_server);
+    drop(gateway);
 }

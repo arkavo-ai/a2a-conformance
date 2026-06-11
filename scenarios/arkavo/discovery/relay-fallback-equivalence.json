@@ -1,0 +1,54 @@
+{
+  "id": "arkavo/discovery/relay-fallback-equivalence",
+  "title": "Same op native (iroh) vs through the relay gateway yields byte-identical decoded results. DRAFT STUB — activates when the iroh adapters land; expectations follow the spec's conformance section.",
+  "spec": "specs/arkavo/iroh-discovery-v1.md §5, §7",
+  "client": {
+    "op": "SendMessage",
+    "params": {
+      "message": {
+        "messageId": "m-1",
+        "role": "ROLE_USER",
+        "parts": [
+          {
+            "text": "discovery probe"
+          }
+        ]
+      }
+    }
+  },
+  "server": {
+    "respond": {
+      "task": {
+        "id": "t-disc-1",
+        "contextId": "c-1",
+        "status": {
+          "state": "TASK_STATE_COMPLETED"
+        }
+      }
+    }
+  },
+  "expect": {
+    "kind": "result",
+    "checks": [
+      {
+        "path": "$.task.id",
+        "equals": "t-disc-1"
+      }
+    ]
+  },
+  "tags": [
+    "arkavo",
+    "discovery",
+    "stub"
+  ],
+  "appliesTo": {
+    "clients": [
+      "arkavo-ext-rust",
+      "arkavo-ext-swift"
+    ],
+    "servers": [
+      "arkavo-ext-rust",
+      "arkavo-ext-swift"
+    ]
+  }
+}

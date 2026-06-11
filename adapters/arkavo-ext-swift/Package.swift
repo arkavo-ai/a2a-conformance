@@ -47,6 +47,11 @@ let package = Package(
                 // Phase 5 TDF parts: the client harness decrypts/verifies and
                 // surfaces fail-closed #error metadata (TDF-HARNESS.md).
                 .product(name: "ArkavoA2ATDF", package: "arkavo-a2a-swift"),
+                // Phase 6 iroh discovery (iroh-discovery-v1 §5, IROH-HARNESS.md):
+                // Swift = relay only. The client resolves the card over HTTP,
+                // reads {nodeId, gateway}, and drives the op through the relay
+                // gateway via IrohGatewayResolver (no iroh awareness).
+                .product(name: "ArkavoA2ADiscovery", package: "arkavo-a2a-swift"),
                 .product(name: "Crypto", package: "swift-crypto"),
             ]
         ),

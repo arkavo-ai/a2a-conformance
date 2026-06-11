@@ -230,6 +230,12 @@ func performOp(_ input: InputLine) async -> JSONValue {
     if input.scenario.hasPrefix("arkavo/transport-equivalence/") {
         return await performTransportEquivalence(input)
     }
+    // iroh discovery (iroh-discovery-v1 §5, IROH-HARNESS.md): Swift = relay only.
+    // The client resolves the card over HTTP, reads {nodeId, gateway}, and drives
+    // the op through the relay gateway (no iroh awareness).
+    if input.scenario.hasPrefix("arkavo/discovery/") {
+        return await performDiscoveryOp(input)
+    }
     let transport = makeTransport(timeoutMs: input.timeoutMs)
     do {
         switch input.op {
