@@ -1,0 +1,41 @@
+{
+  "clientDid" : "did:key:zDnaeVdKP6P8ajybBBirCa4s6U4o8aMFwE62VXuiafVHHhCos",
+  "cwtValid" : "hEOhASagWQEDpwF4G2h0dHBzOi8vaWRlbnRpdHkuYXJrYXZvLm5ldAJ4OWRpZDprZXk6ekRuYWVWZEtQNlA4YWp5YkJCaXJDYTRzNlU0bzhhTUZ3RTYyVlh1aWFmVkhIaENvcwN4OWRpZDprZXk6ekRuYWVkcmZWNkZRd0Rad1dEVkdzYVVYY0N6RHFIZW9WdGQxdEt3OHpjR015aEdWWQQaaE7icAYaaE7hgAdQc3dpZnQtdmVjdG9yLWN0aQihAaQBAiABIVggTTLRJ0LkYTme1NFsurh95Bo6_9bpkXt3rWiVE8UOxWoiWCB92dhz1DW7g7IdMpq1tUwoZ6OMv_RPmnNoYW_zOZcHplhAeNOcMDuTCERQPZeOukz8WbcE2UztZq-Q28FkKd8i4wdQkB1tFY_AhHfWtiWDdQ2dM87xY62FEK6-cZHRx5gDFQ",
+  "iatEpoch" : 1750000000,
+  "iss" : "https://identity.arkavo.net",
+  "issuerDid" : "did:key:zDnaeUdrsXspgwNDa6nnbEd2wCNBT4Tx1h8y1EVWBSHsMRWbP",
+  "serverDid" : "did:key:zDnaedrfV6FQwDZwWDVGsaUXcCzDqHeoVtd1tKw8zcGMyhGVY",
+  "signedCard" : {
+    "capabilities" : {
+      "extensions" : [
+        {
+          "params" : {
+            "did" : "did:key:zDnaedrfV6FQwDZwWDVGsaUXcCzDqHeoVtd1tKw8zcGMyhGVY",
+            "issuer" : "https://identity.arkavo.net"
+          },
+          "uri" : "https://arkavo.social/ext/a2a/aia-identity/v1"
+        }
+      ]
+    },
+    "defaultInputModes" : [
+      "text/plain"
+    ],
+    "defaultOutputModes" : [
+      "text/plain"
+    ],
+    "description" : "Static card for Rust-side cross-verification.",
+    "name" : "Swift Reverse-Vector Agent",
+    "protocolVersion" : "0.3.0",
+    "signatures" : [
+      {
+        "protected" : "eyJhbGciOiJFUzI1NiIsImtpZCI6ImRpZDprZXk6ekRuYWVkcmZWNkZRd0Rad1dEVkdzYVVYY0N6RHFIZW9WdGQxdEt3OHpjR015aEdWWSN6RG5hZWRyZlY2RlF3RFp3V0RWR3NhVVhjQ3pEcUhlb1Z0ZDF0S3c4emNHTXloR1ZZIiwidHlwIjoiSk9TRSJ9",
+        "signature" : "_Hz8GD5LGdE-e353coDp1In-00Ydh0TgWs0d-ijcjR2qv8jeMVaBJ9BBbmODE0iEfTv-B-MzqYBFyyepYeqflg"
+      }
+    ],
+    "skills" : [
+
+    ],
+    "url" : "https://agent.example.com/a2a",
+    "version" : "1.0.0"
+  }
+}

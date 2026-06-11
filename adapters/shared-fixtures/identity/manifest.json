@@ -1,0 +1,102 @@
+{
+  "clientDid": "did:key:zDnaeVdKP6P8ajybBBirCa4s6U4o8aMFwE62VXuiafVHHhCos",
+  "iss": "https://identity.arkavo.net",
+  "issuerDid": "did:key:zDnaeUdrsXspgwNDa6nnbEd2wCNBT4Tx1h8y1EVWBSHsMRWbP",
+  "serverDid": "did:key:zDnaedrfV6FQwDZwWDVGsaUXcCzDqHeoVtd1tKw8zcGMyhGVY",
+  "vectors": {
+    "cwtExpired": "0oRDoQEmoFkBA6cBeBtodHRwczovL2lkZW50aXR5LmFya2F2by5uZXQCeDlkaWQ6a2V5OnpEbmFlVmRLUDZQOGFqeWJCQmlyQ2E0czZVNG84YU1Gd0U2MlZYdWlhZlZISGhDb3MDeDlkaWQ6a2V5OnpEbmFlZHJmVjZGUXdEWndXRFZHc2FVWGNDekRxSGVvVnRkMXRLdzh6Y0dNeWhHVlkEGmhO4UQGGmhO4FQHUGFpYS1jdGktZXhwaXJlZDEIoQGkAQIgASFYIE0y0SdC5GE5ntTRbLq4feQaOv_W6ZF7d61olRPFDsVqIlggfdnYc9Q1u4OyHTKatbVMKGejjL_0T5pzaGFv8zmXB6ZYQG_iVPw06bc-n038hj0NPpfNqISVoH3lJSq26ZqeR7tSu4I2badRFupLzqBQjA3cBjQYDb5PQkEXa-1aIBn5TL0",
+    "cwtValid": "0oRDoQEmoFkBA6cBeBtodHRwczovL2lkZW50aXR5LmFya2F2by5uZXQCeDlkaWQ6a2V5OnpEbmFlVmRLUDZQOGFqeWJCQmlyQ2E0czZVNG84YU1Gd0U2MlZYdWlhZlZISGhDb3MDeDlkaWQ6a2V5OnpEbmFlZHJmVjZGUXdEWndXRFZHc2FVWGNDekRxSGVvVnRkMXRLdzh6Y0dNeWhHVlkEGmhO4nAGGmhO4YAHUGFpYS1jdGktdmFsaWQtMDEIoQGkAQIgASFYIE0y0SdC5GE5ntTRbLq4feQaOv_W6ZF7d61olRPFDsVqIlggfdnYc9Q1u4OyHTKatbVMKGejjL_0T5pzaGFv8zmXB6ZYQDlHIafeKZjWQe4cAgKmQgekkQg-waSRPu-_QmqNtT9Y20B1bP0HJANMkF1N_a-JMTxpo5XB7_Uo3jRkiwpqYbg",
+    "cwtWrongAudience": "0oRDoQEmoFkBA6cBeBtodHRwczovL2lkZW50aXR5LmFya2F2by5uZXQCeDlkaWQ6a2V5OnpEbmFlVmRLUDZQOGFqeWJCQmlyQ2E0czZVNG84YU1Gd0U2MlZYdWlhZlZISGhDb3MDeDlkaWQ6a2V5OnpEbmFlbWN2OHF0TTdqampvcTY1OThWelBDVXJNakd1SHJBcVpza1VFejZSS1g0anAEGmhO4nAGGmhO4YAHUGFpYS1jdGktd3JvbmdhdWQIoQGkAQIgASFYIE0y0SdC5GE5ntTRbLq4feQaOv_W6ZF7d61olRPFDsVqIlggfdnYc9Q1u4OyHTKatbVMKGejjL_0T5pzaGFv8zmXB6ZYQJnWBCXyM7xb_VAF_BIXHvydIdromGX-uOQ2UmAYqytpEISolSUOGYpc891x8Gv_fvCyauMvfcCCD3bbsYJxy94",
+    "iatEpoch": 1750000000,
+    "signedCard": {
+      "capabilities": {
+        "extensions": [
+          {
+            "params": {
+              "did": "did:key:zDnaedrfV6FQwDZwWDVGsaUXcCzDqHeoVtd1tKw8zcGMyhGVY",
+              "issuer": "https://identity.arkavo.net"
+            },
+            "uri": "https://arkavo.social/ext/a2a/aia-identity/v1"
+          }
+        ]
+      },
+      "defaultInputModes": [
+        "text/plain"
+      ],
+      "defaultOutputModes": [
+        "text/plain"
+      ],
+      "description": "Fixture agent for aia-identity-v1 conformance.",
+      "name": "Identity Fixture Agent",
+      "signatures": [
+        {
+          "protected": "eyJhbGciOiJFUzI1NiIsImtpZCI6ImRpZDprZXk6ekRuYWVkcmZWNkZRd0Rad1dEVkdzYVVYY0N6RHFIZW9WdGQxdEt3OHpjR015aEdWWSN6RG5hZWRyZlY2RlF3RFp3V0RWR3NhVVhjQ3pEcUhlb1Z0ZDF0S3c4emNHTXloR1ZZIiwidHlwIjoiSk9TRSJ9",
+          "signature": "UWa0VpZehBWhDOztPFkkxOBds_xCZPl0rcJFqmSmo7DuZpJ-TLAIAub0PsOtpbPQr6S286Bj5ztdCJRe9Vblbg"
+        }
+      ],
+      "skills": [
+        {
+          "description": "Echoes conformance prompts.",
+          "id": "echo",
+          "name": "Echo",
+          "tags": [
+            "test"
+          ]
+        }
+      ],
+      "supportedInterfaces": [
+        {
+          "protocolBinding": "JSONRPC",
+          "protocolVersion": "1.0",
+          "url": "{{baseUrl}}"
+        }
+      ],
+      "version": "0.1.0"
+    },
+    "tamperedCard": {
+      "capabilities": {
+        "extensions": [
+          {
+            "params": {
+              "did": "did:key:zDnaedrfV6FQwDZwWDVGsaUXcCzDqHeoVtd1tKw8zcGMyhGVY",
+              "issuer": "https://identity.arkavo.net"
+            },
+            "uri": "https://arkavo.social/ext/a2a/aia-identity/v1"
+          }
+        ]
+      },
+      "defaultInputModes": [
+        "text/plain"
+      ],
+      "defaultOutputModes": [
+        "text/plain"
+      ],
+      "description": "Fixture agent for aia-identity-v1 conformance!",
+      "name": "Identity Fixture Agent",
+      "signatures": [
+        {
+          "protected": "eyJhbGciOiJFUzI1NiIsImtpZCI6ImRpZDprZXk6ekRuYWVkcmZWNkZRd0Rad1dEVkdzYVVYY0N6RHFIZW9WdGQxdEt3OHpjR015aEdWWSN6RG5hZWRyZlY2RlF3RFp3V0RWR3NhVVhjQ3pEcUhlb1Z0ZDF0S3c4emNHTXloR1ZZIiwidHlwIjoiSk9TRSJ9",
+          "signature": "UWa0VpZehBWhDOztPFkkxOBds_xCZPl0rcJFqmSmo7DuZpJ-TLAIAub0PsOtpbPQr6S286Bj5ztdCJRe9Vblbg"
+        }
+      ],
+      "skills": [
+        {
+          "description": "Echoes conformance prompts.",
+          "id": "echo",
+          "name": "Echo",
+          "tags": [
+            "test"
+          ]
+        }
+      ],
+      "supportedInterfaces": [
+        {
+          "protocolBinding": "JSONRPC",
+          "protocolVersion": "1.0",
+          "url": "{{baseUrl}}"
+        }
+      ],
+      "version": "0.1.0"
+    }
+  }
+}
