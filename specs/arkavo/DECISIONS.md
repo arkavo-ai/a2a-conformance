@@ -22,3 +22,22 @@ check surprises us, the contingency remains a NIO-based WS client confined
 to the `ArkavoA2AWS` target (the SDK seam is transport-abstracted, so the
 fallback would not touch consumers) — but the source evidence makes this
 unlikely.
+
+## §7.4 — iroh from Swift (resolved 2026-06-11, Phase 6)
+
+**Decision: Rust gets native iroh; Swift uses the relay-HTTPS gateway; FFI deferred.**
+
+Pre-decided by the plan (§6 build order, §7.4): native iroh bindings are
+Rust-first; Swift participates via the relay HTTPS gateway
+(`iroh-discovery-v1.md` §5) until UniFFI/C-FFI bindings are justified by real
+Fluxial/Muse latency needs. The Phase-1 relay path keeps Swift apps shipping
+with zero iroh awareness — they speak plain HTTP+SSE against
+`https://<gateway>/<node-id>/…`, which a Rust gateway proxies to the iroh
+node. The conformance matrix is therefore **partial** for Phase 6: native
+legs are rs↔rs; Swift runs `swift-via-relay`. Cells that can't run a leg
+report `skip` (honest-cells rule), never `fail`.
+
+**Hermetic testing:** iroh nodes connect by explicit `NodeAddr` (NodeId +
+direct `127.0.0.1` socket addresses) — no DNS/relay/internet discovery — so
+the conformance harness and CI run fully offline, the same way every other
+phase binds ephemeral local ports.
