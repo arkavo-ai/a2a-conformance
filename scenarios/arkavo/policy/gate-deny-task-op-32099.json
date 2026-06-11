@@ -1,0 +1,31 @@
+{
+  "id": "arkavo/policy/gate-deny-task-op-32099",
+  "title": "Gate refusal of a task-management op yields -32099 TorgPolicyRefusal with the Rejection @type object. DRAFT STUB — activates when the arkavo adapters land; expectations follow the spec's conformance section.",
+  "spec": "specs/arkavo/torg-gate-v1.md §3.2",
+  "client": {
+    "op": "GetTask",
+    "params": {
+      "id": "t-pol-denied"
+    }
+  },
+  "server": {},
+  "expect": {
+    "kind": "error",
+    "errorCode": -32099
+  },
+  "tags": [
+    "arkavo",
+    "policy",
+    "stub"
+  ],
+  "appliesTo": {
+    "clients": [
+      "arkavo-ext-rust",
+      "arkavo-ext-swift"
+    ],
+    "servers": [
+      "arkavo-ext-rust",
+      "arkavo-ext-swift"
+    ]
+  }
+}

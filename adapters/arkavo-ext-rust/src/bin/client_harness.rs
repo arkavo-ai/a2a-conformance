@@ -28,6 +28,7 @@ use arkavo_a2a_identity::{
     CardVerification, ConfirmationKey, CwtCallInterceptor, CwtClaims, CwtCredential, VerifyMode,
     did_key_from_verifying_key, random_cti, sign_cwt, verify_card,
 };
+use arkavo_a2a_policy::{REJECTION_TYPE_URL, TORG_POLICY_REFUSAL_CODE};
 use base64::Engine;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use futures::{FutureExt, StreamExt};
@@ -69,6 +70,21 @@ fn outcome_harness_error(detail: String) -> Value {
 }
 
 fn a2a_error(e: &A2AError) -> Value {
+    // torg-gate §3.2: an error carrying the `arkavo.torg.v1.Rejection` @type
+    // detail IS the TorgPolicyRefusal (−32099), whatever code the generic
+    // SDK decode surfaced. The a2a-rs server envelope auto-appends a
+    // google.rpc.ErrorInfo whose fallback reason for non-core codes is
+    // INTERNAL_ERROR, and the a2a-rs client lets that protocol-domain reason
+    // override the wire code (−32099 → −32603); the extension-aware harness
+    // restores the pinned code from the normative detail. Scenario-blind:
+    // keyed on the wire shape, never on scenario ids.
+    let is_torg_refusal = e
+        .details
+        .as_ref()
+        .is_some_and(|details| details.iter().any(|d| d.type_url == REJECTION_TYPE_URL));
+    if is_torg_refusal {
+        return outcome_error(Some(TORG_POLICY_REFUSAL_CODE), e.message.clone());
+    }
     outcome_error(Some(e.code), e.message.clone())
 }
 

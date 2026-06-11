@@ -76,8 +76,8 @@ Cell format: `pass/applicable` (skip = harness reported unsupported; n/a = exclu
 
 | client \ server | arkavo-ext-rust | arkavo-ext-swift | arkavo-swift | rust-a2a | tolgaki-swift |
 |---|---|---|---|---|---|
-| **arkavo-ext-rust** | [✅ 3/3](cells/arkavo-ext-rust--arkavo-ext-rust.md) (self) | [✅ 3/3](cells/arkavo-ext-rust--arkavo-ext-swift.md) | – | – | – |
-| **arkavo-ext-swift** | [✅ 3/3](cells/arkavo-ext-swift--arkavo-ext-rust.md) | [✅ 3/3](cells/arkavo-ext-swift--arkavo-ext-swift.md) (self) | – | – | – |
+| **arkavo-ext-rust** | [✅ 4/4](cells/arkavo-ext-rust--arkavo-ext-rust.md) (self) | [✅ 4/4](cells/arkavo-ext-rust--arkavo-ext-swift.md) | – | – | – |
+| **arkavo-ext-swift** | [✅ 4/4](cells/arkavo-ext-swift--arkavo-ext-rust.md) | [✅ 4/4](cells/arkavo-ext-swift--arkavo-ext-swift.md) (self) | – | – | – |
 | **arkavo-swift** | – | – | – | – | – |
 | **rust-a2a** | – | – | – | – | – |
 | **tolgaki-swift** | – | – | – | – | – |

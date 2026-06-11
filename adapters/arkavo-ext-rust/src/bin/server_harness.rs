@@ -8,7 +8,11 @@
 // - the `arkavo/identity/card-signature-*` scenarios serve a DID-signed
 //   (and, for `-tampered`, post-signing mutated) agent card;
 // - the default card advertises the aia-identity extension with
-//   `params.did` = serverDid.
+//   `params.did` = serverDid;
+// - while an `arkavo/policy/*` scenario is selected (POLICY-HARNESS.md), the
+//   dispatch path routes through arkavo-a2a-policy's GatedDispatcher over the
+//   same scripted handler, with the reference evaluator (plus, for
+//   gate-deny-task-op-32099 only, a harness-armed deny-all-task-ops rule).
 //
 // Every other scenario behaves byte-identically to adapters/rust.
 
@@ -24,6 +28,9 @@ use a2a_server::agent_card::{AgentCardProducer, agent_card_router};
 use a2a_server::jsonrpc::jsonrpc_router;
 use a2a_server::{RequestHandler, ServiceParams};
 use arkavo_a2a_identity::{CwtVerifier, did_key_url, sign_card};
+use arkavo_a2a_policy::{
+    Decision, GateContext, GatedDispatcher, PolicyEvaluator, ReferenceEvaluator, Rejection,
+};
 use async_trait::async_trait;
 use axum::extract::State;
 use axum::response::IntoResponse;
@@ -384,6 +391,210 @@ impl RequestHandler for ScriptedHandler {
 }
 
 // ---------------------------------------------------------------------------
+// arkavo-ext: scenario-keyed policy gate (POLICY-HARNESS.md)
+// ---------------------------------------------------------------------------
+
+/// The harness-side composite evaluator: while gate-deny-task-op-32099 is
+/// selected, deny every non-message-carrying (task-management) op with the
+/// TM-001 harness rule; otherwise fall through to the shared
+/// ReferenceEvaluator. The arming lives HERE, in the harness — the extension
+/// layer's evaluators stay scenario-blind (identity auth-arming pattern).
+struct HarnessPolicyEvaluator {
+    ext: Arc<ExtState>,
+}
+
+#[async_trait]
+impl PolicyEvaluator for HarnessPolicyEvaluator {
+    async fn evaluate(&self, ctx: &GateContext<'_>) -> Decision {
+        if self.ext.policy_tm_deny.load(Ordering::SeqCst) && !ctx.op.is_message_carrying() {
+            return Decision::Deny(Rejection::new(
+                "conformance:reference@v1",
+                "TM-001",
+                "task-management refused by policy",
+            ));
+        }
+        ReferenceEvaluator.evaluate(ctx).await
+    }
+}
+
+/// Routing shim mounted in front of the SDK's jsonrpc router (the router is
+/// built once at startup, so BOTH dispatch paths are built up front and this
+/// outer handler delegates per the armed flag — the mirror of the identity
+/// middleware approach at the handler layer):
+///
+/// - policy armed (`arkavo/policy/*` selected): record the decoded request
+///   for `GET /observed` (a denied request never reaches the inner scripted
+///   handler, which normally does the recording), then dispatch through the
+///   GatedDispatcher over the scripted handler;
+/// - not armed: the untouched vanilla path (degradation posture).
+struct PolicyShim {
+    state: SharedState,
+    ext: Arc<ExtState>,
+    plain: ScriptedHandler,
+    gated: GatedDispatcher<ScriptedHandler, HarnessPolicyEvaluator>,
+}
+
+impl PolicyShim {
+    fn armed(&self) -> bool {
+        self.ext.policy_armed.load(Ordering::SeqCst)
+    }
+
+    fn observe<T: ProtoJsonPayload>(&self, req: &T) {
+        let value = protojson_conv::to_value(req).ok();
+        self.state.lock().unwrap().observed = value;
+    }
+}
+
+// Each method: observe + gated path while a policy scenario is armed, plain
+// scripted path otherwise. (Written out long-hand: a macro_rules shim cannot
+// expand inside #[async_trait], which rewrites the impl before expansion.)
+#[async_trait]
+impl RequestHandler for PolicyShim {
+    async fn send_message(
+        &self,
+        params: &ServiceParams,
+        req: SendMessageRequest,
+    ) -> Result<SendMessageResponse, A2AError> {
+        if self.armed() {
+            self.observe(&req);
+            self.gated.send_message(params, req).await
+        } else {
+            self.plain.send_message(params, req).await
+        }
+    }
+
+    async fn send_streaming_message(
+        &self,
+        params: &ServiceParams,
+        req: SendMessageRequest,
+    ) -> Result<BoxStream<'static, Result<StreamResponse, A2AError>>, A2AError> {
+        if self.armed() {
+            self.observe(&req);
+            self.gated.send_streaming_message(params, req).await
+        } else {
+            self.plain.send_streaming_message(params, req).await
+        }
+    }
+
+    async fn get_task(
+        &self,
+        params: &ServiceParams,
+        req: GetTaskRequest,
+    ) -> Result<Task, A2AError> {
+        if self.armed() {
+            self.observe(&req);
+            self.gated.get_task(params, req).await
+        } else {
+            self.plain.get_task(params, req).await
+        }
+    }
+
+    async fn list_tasks(
+        &self,
+        params: &ServiceParams,
+        req: ListTasksRequest,
+    ) -> Result<ListTasksResponse, A2AError> {
+        if self.armed() {
+            self.observe(&req);
+            self.gated.list_tasks(params, req).await
+        } else {
+            self.plain.list_tasks(params, req).await
+        }
+    }
+
+    async fn cancel_task(
+        &self,
+        params: &ServiceParams,
+        req: CancelTaskRequest,
+    ) -> Result<Task, A2AError> {
+        if self.armed() {
+            self.observe(&req);
+            self.gated.cancel_task(params, req).await
+        } else {
+            self.plain.cancel_task(params, req).await
+        }
+    }
+
+    async fn subscribe_to_task(
+        &self,
+        params: &ServiceParams,
+        req: SubscribeToTaskRequest,
+    ) -> Result<BoxStream<'static, Result<StreamResponse, A2AError>>, A2AError> {
+        if self.armed() {
+            self.observe(&req);
+            self.gated.subscribe_to_task(params, req).await
+        } else {
+            self.plain.subscribe_to_task(params, req).await
+        }
+    }
+
+    async fn create_push_config(
+        &self,
+        params: &ServiceParams,
+        req: TaskPushNotificationConfig,
+    ) -> Result<TaskPushNotificationConfig, A2AError> {
+        if self.armed() {
+            self.observe(&req);
+            self.gated.create_push_config(params, req).await
+        } else {
+            self.plain.create_push_config(params, req).await
+        }
+    }
+
+    async fn get_push_config(
+        &self,
+        params: &ServiceParams,
+        req: GetTaskPushNotificationConfigRequest,
+    ) -> Result<TaskPushNotificationConfig, A2AError> {
+        if self.armed() {
+            self.observe(&req);
+            self.gated.get_push_config(params, req).await
+        } else {
+            self.plain.get_push_config(params, req).await
+        }
+    }
+
+    async fn list_push_configs(
+        &self,
+        params: &ServiceParams,
+        req: ListTaskPushNotificationConfigsRequest,
+    ) -> Result<ListTaskPushNotificationConfigsResponse, A2AError> {
+        if self.armed() {
+            self.observe(&req);
+            self.gated.list_push_configs(params, req).await
+        } else {
+            self.plain.list_push_configs(params, req).await
+        }
+    }
+
+    async fn delete_push_config(
+        &self,
+        params: &ServiceParams,
+        req: DeleteTaskPushNotificationConfigRequest,
+    ) -> Result<(), A2AError> {
+        if self.armed() {
+            self.observe(&req);
+            self.gated.delete_push_config(params, req).await
+        } else {
+            self.plain.delete_push_config(params, req).await
+        }
+    }
+
+    async fn get_extended_agent_card(
+        &self,
+        params: &ServiceParams,
+        req: GetExtendedAgentCardRequest,
+    ) -> Result<AgentCard, A2AError> {
+        if self.armed() {
+            self.observe(&req);
+            self.gated.get_extended_agent_card(params, req).await
+        } else {
+            self.plain.get_extended_agent_card(params, req).await
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
 // arkavo-ext: scenario-keyed identity layer (IDENTITY-HARNESS.md)
 // ---------------------------------------------------------------------------
 
@@ -394,6 +605,12 @@ impl RequestHandler for ScriptedHandler {
 struct ExtState {
     /// True while an `arkavo/identity/cwt-*` scenario is selected.
     armed: AtomicBool,
+    /// True while an `arkavo/policy/*` scenario is selected: dispatch routes
+    /// through the GatedDispatcher (POLICY-HARNESS.md server arming table).
+    policy_armed: AtomicBool,
+    /// True while `arkavo/policy/gate-deny-task-op-32099` is selected: the
+    /// harness composite evaluator denies every task-management op (TM-001).
+    policy_tm_deny: AtomicBool,
     /// Exact bytes to serve for the card-signature scenarios: the signature
     /// covers the canonical form of precisely these bytes, so they bypass
     /// the SDK's card producer (which could re-encode).
@@ -597,6 +814,16 @@ async fn handle_select(State(ctrl): State<CtrlState>, Json(body): Json<SelectBod
     ctrl.ext
         .armed
         .store(id.starts_with("arkavo/identity/cwt-"), Ordering::SeqCst);
+    // arkavo-ext: scenario-keyed policy arming (POLICY-HARNESS.md). The gate
+    // is armed ONLY while an arkavo/policy/* scenario is selected; the TM-001
+    // deny-all-task-ops rule additionally only for gate-deny-task-op-32099.
+    ctrl.ext
+        .policy_armed
+        .store(id.starts_with("arkavo/policy/"), Ordering::SeqCst);
+    ctrl.ext.policy_tm_deny.store(
+        id == "arkavo/policy/gate-deny-task-op-32099",
+        Ordering::SeqCst,
+    );
     let raw_card = if id == "arkavo/identity/card-signature-valid"
         || id == "arkavo/identity/card-signature-tampered"
     {
@@ -612,10 +839,14 @@ async fn handle_select(State(ctrl): State<CtrlState>, Json(body): Json<SelectBod
     };
     *ctrl.ext.raw_card.write().unwrap() = raw_card;
 
-    if id == "arkavo/identity/cwt-expired" || id == "arkavo/identity/cwt-wrong-audience" {
-        // Auth-transport scenarios script nothing: the request must die at
-        // the HTTP layer (401), so the SDK handler stays unscripted and the
-        // default (extension-advertising) card is served.
+    if id == "arkavo/identity/cwt-expired"
+        || id == "arkavo/identity/cwt-wrong-audience"
+        || id == "arkavo/policy/gate-deny-task-op-32099"
+    {
+        // Scenarios that script nothing: the request must die before the
+        // scripted handler (401 at the HTTP layer for the cwt pair; −32099
+        // at the armed gate for the policy task-op denial), so the SDK
+        // handler stays unscripted and the default card is served.
         {
             let mut state = ctrl.state.lock().unwrap();
             state.scripted = Scripted::None;
@@ -688,6 +919,8 @@ async fn main() {
     };
     let ext = Arc::new(ExtState {
         armed: AtomicBool::new(false),
+        policy_armed: AtomicBool::new(false),
+        policy_tm_deny: AtomicBool::new(false),
         raw_card: RwLock::new(None),
         verifier: CwtVerifier::new(fx.issuer_verifying, fx.iss.clone(), fx.server_did.clone()),
         kid: did_key_url(fx.server_signing.verifying_key()),
@@ -698,7 +931,18 @@ async fn main() {
     let default = default_card(&public_base_url, &ext.fx);
     let card = Arc::new(RwLock::new(default.clone()));
 
-    let handler = Arc::new(ScriptedHandler { state: state.clone() });
+    // Both dispatch paths share the one scripted state; the PolicyShim
+    // routes between them per the policy_armed flag (built once, like the
+    // jsonrpc router itself).
+    let handler = Arc::new(PolicyShim {
+        state: state.clone(),
+        ext: ext.clone(),
+        plain: ScriptedHandler { state: state.clone() },
+        gated: GatedDispatcher::new(
+            ScriptedHandler { state: state.clone() },
+            HarnessPolicyEvaluator { ext: ext.clone() },
+        ),
+    });
     let producer = Arc::new(SwappableCard { card: card.clone() });
     let a2a_app: Router = jsonrpc_router(handler)
         .merge(agent_card_router(producer))

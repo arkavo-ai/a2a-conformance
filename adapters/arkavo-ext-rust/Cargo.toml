@@ -27,6 +27,7 @@ a2a-pb = { package = "a2a-pb", git = "https://github.com/a2aproject/a2a-rs.git",
 # arkavo-a2a-rs repo stays private until the §7.5 licensing decision, so this
 # adapter builds only where that checkout exists (self-hosted / local runs).
 arkavo-a2a-identity = { path = "../../../arkavo-a2a-rs/crates/arkavo-a2a-identity" }
+arkavo-a2a-policy = { path = "../../../arkavo-a2a-rs/crates/arkavo-a2a-policy" }
 arkavo-a2a-wire = { path = "../../../arkavo-a2a-rs/crates/arkavo-a2a-wire" }
 
 async-trait = "0.1"
