@@ -1,0 +1,45 @@
+{
+  "id": "arkavo/tdf/tdf-part-wrong-key-fails-closed",
+  "title": "KAS denial / wrong key fails closed: part surfaces #error metadata, never silent plaintext. DRAFT STUB — activates when the arkavo adapters land; expectations follow the spec's conformance section.",
+  "spec": "specs/arkavo/tdf-parts-v1.md",
+  "client": {
+    "op": "GetTask",
+    "params": {
+      "id": "t-tdf-2"
+    }
+  },
+  "server": {
+    "respond": {
+      "id": "t-tdf-2",
+      "contextId": "c-1",
+      "status": {
+        "state": "TASK_STATE_COMPLETED"
+      }
+    }
+  },
+  "expect": {
+    "kind": "result",
+    "checks": [
+      {
+        "path": "$.id",
+        "equals": "t-tdf-2"
+      }
+    ]
+  },
+  "tags": [
+    "arkavo",
+    "tdf",
+    "stub",
+    "fail-closed"
+  ],
+  "appliesTo": {
+    "clients": [
+      "arkavo-ext-rust",
+      "arkavo-ext-swift"
+    ],
+    "servers": [
+      "arkavo-ext-rust",
+      "arkavo-ext-swift"
+    ]
+  }
+}

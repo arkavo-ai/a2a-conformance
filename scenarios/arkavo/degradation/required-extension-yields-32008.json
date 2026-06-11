@@ -1,0 +1,44 @@
+{
+  "id": "arkavo/degradation/required-extension-yields-32008",
+  "title": "A server with a required:true extension correctly refuses a non-supporting client with ExtensionSupportRequired (-32008). DRAFT STUB — activates when the arkavo adapters land; expectations follow the spec's conformance section.",
+  "spec": "A2A §4.6.3, §5.4; all arkavo specs",
+  "client": {
+    "op": "SendMessage",
+    "params": {
+      "message": {
+        "messageId": "m-1",
+        "role": "ROLE_USER",
+        "parts": [
+          {
+            "text": "no extensions here"
+          }
+        ]
+      }
+    }
+  },
+  "server": {
+    "error": {
+      "code": -32008,
+      "message": "Extension support required"
+    }
+  },
+  "expect": {
+    "kind": "error",
+    "errorCode": -32008
+  },
+  "tags": [
+    "arkavo",
+    "degradation",
+    "stub"
+  ],
+  "appliesTo": {
+    "clients": [
+      "rust-a2a",
+      "tolgaki-swift"
+    ],
+    "servers": [
+      "arkavo-ext-rust",
+      "arkavo-ext-swift"
+    ]
+  }
+}

@@ -1,0 +1,54 @@
+{
+  "id": "arkavo/identity/cwt-auth-success",
+  "title": "CWT-authenticated SendMessage succeeds. DRAFT STUB — activates when the arkavo adapters land; expectations follow the spec's conformance section.",
+  "spec": "specs/arkavo/aia-identity-v1.md",
+  "client": {
+    "op": "SendMessage",
+    "params": {
+      "message": {
+        "messageId": "m-1",
+        "role": "ROLE_USER",
+        "parts": [
+          {
+            "text": "authenticated hello"
+          }
+        ]
+      }
+    }
+  },
+  "server": {
+    "respond": {
+      "task": {
+        "id": "t-id-1",
+        "contextId": "c-1",
+        "status": {
+          "state": "TASK_STATE_COMPLETED"
+        }
+      }
+    }
+  },
+  "expect": {
+    "kind": "result",
+    "checks": [
+      {
+        "path": "$.task.id",
+        "equals": "t-id-1"
+      }
+    ]
+  },
+  "tags": [
+    "arkavo",
+    "identity",
+    "stub"
+  ],
+  "appliesTo": {
+    "clients": [
+      "arkavo-ext-rust",
+      "arkavo-ext-swift"
+    ],
+    "servers": [
+      "arkavo-ext-rust",
+      "arkavo-ext-swift"
+    ]
+  }
+}

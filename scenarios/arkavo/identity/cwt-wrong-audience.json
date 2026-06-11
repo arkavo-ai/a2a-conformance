@@ -1,0 +1,41 @@
+{
+  "id": "arkavo/identity/cwt-wrong-audience",
+  "title": "CWT with wrong audience is rejected (403 equivalent). DRAFT STUB — activates when the arkavo adapters land; expectations follow the spec's conformance section.",
+  "spec": "specs/arkavo/aia-identity-v1.md",
+  "client": {
+    "op": "SendMessage",
+    "params": {
+      "message": {
+        "messageId": "m-1",
+        "role": "ROLE_USER",
+        "parts": [
+          {
+            "text": "should not arrive"
+          }
+        ]
+      }
+    }
+  },
+  "server": {},
+  "expect": {
+    "kind": "error",
+    "errorCode": null,
+    "checks": []
+  },
+  "tags": [
+    "arkavo",
+    "identity",
+    "stub",
+    "auth-transport-error"
+  ],
+  "appliesTo": {
+    "clients": [
+      "arkavo-ext-rust",
+      "arkavo-ext-swift"
+    ],
+    "servers": [
+      "arkavo-ext-rust",
+      "arkavo-ext-swift"
+    ]
+  }
+}

@@ -1,0 +1,54 @@
+{
+  "id": "arkavo/transport-equivalence/send-message-equivalent",
+  "title": "Same SendMessage over HTTP/JSON ≡ WS/JSON ≡ WS/CBOR: decoded results byte-identical (a2a-itk precedent). DRAFT STUB — activates when the arkavo adapters land; expectations follow the spec's conformance section.",
+  "spec": "specs/arkavo/ws-binding-v1.md §5, cbor-codec-v1.md §6",
+  "client": {
+    "op": "SendMessage",
+    "params": {
+      "message": {
+        "messageId": "m-1",
+        "role": "ROLE_USER",
+        "parts": [
+          {
+            "text": "equivalence probe"
+          }
+        ]
+      }
+    }
+  },
+  "server": {
+    "respond": {
+      "task": {
+        "id": "t-eq-1",
+        "contextId": "c-1",
+        "status": {
+          "state": "TASK_STATE_COMPLETED"
+        }
+      }
+    }
+  },
+  "expect": {
+    "kind": "result",
+    "checks": [
+      {
+        "path": "$.task.id",
+        "equals": "t-eq-1"
+      }
+    ]
+  },
+  "tags": [
+    "arkavo",
+    "transport-equivalence",
+    "stub"
+  ],
+  "appliesTo": {
+    "clients": [
+      "arkavo-ext-rust",
+      "arkavo-ext-swift"
+    ],
+    "servers": [
+      "arkavo-ext-rust",
+      "arkavo-ext-swift"
+    ]
+  }
+}

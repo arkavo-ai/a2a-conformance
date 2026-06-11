@@ -69,6 +69,12 @@ PRs adding implementations are welcome — that includes maintainers of the SDKs
 
 Out of scope: performance measurement, authenticated/extended-card flows, anything vendor-specific.
 
+## Arkavo extension specs and scenarios
+
+`specs/arkavo/` holds specifications for Arkavo's A2A protocol extensions (WebSocket binding, CBOR codec, identity, policy gating, TDF part encryption, iroh discovery), and `scenarios/arkavo/` their conformance scenarios. They follow the same spec-first discipline as the core corpus: a capability exists when its Rust↔Swift matrix cells are green, not before. Extension scenarios apply only to the `arkavo-ext-*` adapter implementations (plus the mandatory `degradation/` row, which runs vanilla clients against extended servers); they are inert (`n/a`) for the core matrix.
+
+**Governance note:** the donation offer to a2aproject covers the vendor-neutral core of this repository (runner, schemas, core corpus, adapters for public SDKs). `specs/arkavo/` and `scenarios/arkavo/` are Arkavo-stewarded; if donation ever proceeds, they move out to an Arkavo repository first. Two of the extension specs (`ws-binding-v1`, `cbor-codec-v1`) are themselves vendor-neutral upstream candidates and would move *up*, not out.
+
 ## License
 
-[Apache 2.0](LICENSE). Vendor-neutral by design; donation to [a2aproject](https://github.com/a2aproject) offered if there's interest.
+[Apache 2.0](LICENSE). Vendor-neutral by design; donation to [a2aproject](https://github.com/a2aproject) offered if there's interest (subject to the governance note above).

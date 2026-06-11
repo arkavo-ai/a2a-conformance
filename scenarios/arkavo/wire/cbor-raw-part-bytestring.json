@@ -1,0 +1,56 @@
+{
+  "id": "arkavo/wire/cbor-raw-part-bytestring",
+  "title": "Part.raw travels as CBOR byte string (major type 2) and transcodes losslessly to JSON base64. DRAFT STUB — activates when the arkavo adapters land; expectations follow the spec's conformance section.",
+  "spec": "specs/arkavo/cbor-codec-v1.md §4",
+  "client": {
+    "op": "GetTask",
+    "params": {
+      "id": "t-cbor-2"
+    }
+  },
+  "server": {
+    "respond": {
+      "id": "t-cbor-2",
+      "contextId": "c-1",
+      "status": {
+        "state": "TASK_STATE_COMPLETED"
+      },
+      "artifacts": [
+        {
+          "artifactId": "a-1",
+          "parts": [
+            {
+              "raw": "aGVsbG8gd29ybGQ=",
+              "mediaType": "application/octet-stream"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "expect": {
+    "kind": "result",
+    "checks": [
+      {
+        "path": "$.artifacts[0].parts[0].raw",
+        "equals": "aGVsbG8gd29ybGQ="
+      }
+    ]
+  },
+  "tags": [
+    "arkavo",
+    "wire",
+    "cbor",
+    "stub"
+  ],
+  "appliesTo": {
+    "clients": [
+      "arkavo-ext-rust",
+      "arkavo-ext-swift"
+    ],
+    "servers": [
+      "arkavo-ext-rust",
+      "arkavo-ext-swift"
+    ]
+  }
+}

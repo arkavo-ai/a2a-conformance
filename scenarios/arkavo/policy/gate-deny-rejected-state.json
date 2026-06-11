@@ -1,0 +1,66 @@
+{
+  "id": "arkavo/policy/gate-deny-rejected-state",
+  "title": "Gate refusal of a message op yields TASK_STATE_REJECTED with structured rejection metadata. DRAFT STUB — activates when the arkavo adapters land; expectations follow the spec's conformance section.",
+  "spec": "specs/arkavo/torg-gate-v1.md",
+  "client": {
+    "op": "SendMessage",
+    "params": {
+      "message": {
+        "messageId": "m-1",
+        "role": "ROLE_USER",
+        "parts": [
+          {
+            "text": "policy-violating request"
+          }
+        ]
+      }
+    }
+  },
+  "server": {
+    "respond": {
+      "task": {
+        "id": "t-pol-2",
+        "contextId": "c-1",
+        "status": {
+          "state": "TASK_STATE_REJECTED"
+        },
+        "metadata": {
+          "https://arkavo.social/ext/a2a/torg-gate/v1#rejection": {
+            "policyId": "p-1",
+            "ruleId": "r-7",
+            "reason": "blocked by policy",
+            "advisory": false
+          }
+        }
+      }
+    }
+  },
+  "expect": {
+    "kind": "result",
+    "checks": [
+      {
+        "path": "$.task.status.state",
+        "equals": "TASK_STATE_REJECTED"
+      },
+      {
+        "path": "$.task.metadata",
+        "exists": true
+      }
+    ]
+  },
+  "tags": [
+    "arkavo",
+    "policy",
+    "stub"
+  ],
+  "appliesTo": {
+    "clients": [
+      "arkavo-ext-rust",
+      "arkavo-ext-swift"
+    ],
+    "servers": [
+      "arkavo-ext-rust",
+      "arkavo-ext-swift"
+    ]
+  }
+}

@@ -82,9 +82,9 @@ fn validate(root: &std::path::Path) -> Result<()> {
         }
         match s.expect.kind.as_str() {
             "error" => {
-                if s.expect.error_code.is_none() {
-                    problems.push(format!("{}: expect.kind=error requires errorCode", s.id));
-                }
+                // errorCode null/absent is permitted: it asserts only that a
+                // protocol-level error is surfaced (e.g. transport-layer auth
+                // failures with no JSON-RPC code).
             }
             "stream" => {
                 if s.expect.stream_order.is_none() {
@@ -186,7 +186,18 @@ async fn run(
 
     std::fs::create_dir_all(&report_dir)?;
     report::write_ndjson(&report_dir.join("results.ndjson"), &results)?;
-    let groups = ["core", "streaming", "errors", "discovery", "edge"];
+    let mut groups: Vec<String> = scenarios
+        .iter()
+        .map(|s| s.group().to_string())
+        .collect::<std::collections::BTreeSet<_>>()
+        .into_iter()
+        .collect();
+    // Keep the core corpus groups in their conventional order, extensions after.
+    let conventional = ["core", "streaming", "errors", "discovery", "edge"];
+    groups.sort_by_key(|g| {
+        (conventional.iter().position(|c| c == g).unwrap_or(usize::MAX), g.clone())
+    });
+    let groups: Vec<&str> = groups.iter().map(String::as_str).collect();
     let clients: Vec<String> = cells.iter().map(|c| c.0.clone()).collect::<std::collections::BTreeSet<_>>().into_iter().collect();
     let servers: Vec<String> = cells.iter().map(|c| c.1.clone()).collect::<std::collections::BTreeSet<_>>().into_iter().collect();
     report::write_markdown(&report_dir, &results, &groups, &clients, &servers)?;
@@ -366,7 +377,7 @@ fn evaluate_outcome(
                 return;
             }
             let code = outcome["errorCode"].as_i64();
-            if code != expect.error_code {
+            if expect.error_code.is_some() && code != expect.error_code {
                 line.status = "fail".into();
                 line.detail = Some(format!(
                     "expected error code {:?}, got {:?} ({})",

@@ -1,0 +1,63 @@
+{
+  "id": "arkavo/ws/ws-concurrent-streams-multiplexed",
+  "title": "Two streaming exchanges interleave on one socket; per-id order preserved; both end in fin. DRAFT STUB — activates when the arkavo adapters land; expectations follow the spec's conformance section.",
+  "spec": "specs/arkavo/ws-binding-v1.md §5, framing-envelope-v1.md §3",
+  "client": {
+    "op": "SendStreamingMessage",
+    "params": {
+      "message": {
+        "messageId": "m-1",
+        "role": "ROLE_USER",
+        "parts": [
+          {
+            "text": "stream A"
+          }
+        ]
+      }
+    }
+  },
+  "server": {
+    "sse": [
+      {
+        "task": {
+          "id": "t-ws-2",
+          "contextId": "c-1",
+          "status": {
+            "state": "TASK_STATE_WORKING"
+          }
+        }
+      },
+      {
+        "statusUpdate": {
+          "taskId": "t-ws-2",
+          "contextId": "c-1",
+          "status": {
+            "state": "TASK_STATE_COMPLETED"
+          }
+        }
+      }
+    ]
+  },
+  "expect": {
+    "kind": "stream",
+    "streamOrder": [
+      "task",
+      "statusUpdate"
+    ]
+  },
+  "tags": [
+    "arkavo",
+    "ws",
+    "stub"
+  ],
+  "appliesTo": {
+    "clients": [
+      "arkavo-ext-rust",
+      "arkavo-ext-swift"
+    ],
+    "servers": [
+      "arkavo-ext-rust",
+      "arkavo-ext-swift"
+    ]
+  }
+}

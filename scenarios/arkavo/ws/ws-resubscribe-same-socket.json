@@ -1,0 +1,45 @@
+{
+  "id": "arkavo/ws/ws-resubscribe-same-socket",
+  "title": "SubscribeToTask reuses the live socket with a fresh envelope id. DRAFT STUB — activates when the arkavo adapters land; expectations follow the spec's conformance section.",
+  "spec": "specs/arkavo/ws-binding-v1.md §3",
+  "client": {
+    "op": "SubscribeToTask",
+    "params": {
+      "id": "t-ws-3"
+    }
+  },
+  "server": {
+    "sse": [
+      {
+        "statusUpdate": {
+          "taskId": "t-ws-3",
+          "contextId": "c-1",
+          "status": {
+            "state": "TASK_STATE_COMPLETED"
+          }
+        }
+      }
+    ]
+  },
+  "expect": {
+    "kind": "stream",
+    "streamOrder": [
+      "statusUpdate"
+    ]
+  },
+  "tags": [
+    "arkavo",
+    "ws",
+    "stub"
+  ],
+  "appliesTo": {
+    "clients": [
+      "arkavo-ext-rust",
+      "arkavo-ext-swift"
+    ],
+    "servers": [
+      "arkavo-ext-rust",
+      "arkavo-ext-swift"
+    ]
+  }
+}

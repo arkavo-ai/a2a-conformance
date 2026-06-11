@@ -1,0 +1,56 @@
+{
+  "id": "arkavo/ws/ws-subprotocol-negotiation",
+  "title": "Subprotocol negotiation selects a2a.v1.json/a2a.v1.cbor; unsupported-only offer fails the handshake. DRAFT STUB — activates when the arkavo adapters land; expectations follow the spec's conformance section.",
+  "spec": "specs/arkavo/ws-binding-v1.md §2",
+  "client": {
+    "op": "SendMessage",
+    "params": {
+      "message": {
+        "messageId": "m-1",
+        "role": "ROLE_USER",
+        "parts": [
+          {
+            "text": "negotiated"
+          }
+        ]
+      }
+    }
+  },
+  "server": {
+    "respond": {
+      "message": {
+        "messageId": "m-n",
+        "role": "ROLE_AGENT",
+        "parts": [
+          {
+            "text": "negotiated reply"
+          }
+        ]
+      }
+    }
+  },
+  "expect": {
+    "kind": "result",
+    "checks": [
+      {
+        "path": "$.message.parts[0].text",
+        "equals": "negotiated reply"
+      }
+    ]
+  },
+  "tags": [
+    "arkavo",
+    "ws",
+    "stub"
+  ],
+  "appliesTo": {
+    "clients": [
+      "arkavo-ext-rust",
+      "arkavo-ext-swift"
+    ],
+    "servers": [
+      "arkavo-ext-rust",
+      "arkavo-ext-swift"
+    ]
+  }
+}

@@ -29,3 +29,8 @@ servers = ["rust-a2a", "arkavo-swift", "tolgaki-swift"]
 
 [runner]
 timeout_ms = 30000
+
+# Future extension implementations (arkavo-a2a-rs / arkavo-a2a-swift wrappers)
+# will register as `arkavo-ext-rust` and `arkavo-ext-swift` — names referenced
+# by scenarios/arkavo/**.appliesTo. Until those adapters land, every arkavo/*
+# scenario reports n/a in all cells.

@@ -1,0 +1,79 @@
+{
+  "id": "arkavo/policy/taint-propagation-blocked",
+  "title": "Tainted message metadata (arkavo.social/seq#taint) is propagated and gate-blocked. DRAFT STUB — activates when the arkavo adapters land; expectations follow the spec's conformance section.",
+  "spec": "specs/arkavo/torg-gate-v1.md",
+  "client": {
+    "op": "SendMessage",
+    "params": {
+      "message": {
+        "messageId": "m-taint",
+        "role": "ROLE_USER",
+        "parts": [
+          {
+            "text": "derived from tainted input"
+          }
+        ],
+        "metadata": {
+          "arkavo.social/seq#taint": [
+            {
+              "flag": "SEQ-004",
+              "origin": "agent-x",
+              "hop": 2
+            }
+          ]
+        }
+      }
+    }
+  },
+  "server": {
+    "respond": {
+      "task": {
+        "id": "t-pol-3",
+        "contextId": "c-1",
+        "status": {
+          "state": "TASK_STATE_REJECTED"
+        },
+        "metadata": {
+          "https://arkavo.social/ext/a2a/torg-gate/v1#rejection": {
+            "policyId": "p-seq",
+            "ruleId": "SEQ-004",
+            "reason": "taint policy",
+            "advisory": false
+          }
+        }
+      }
+    }
+  },
+  "expect": {
+    "kind": "result",
+    "checks": [
+      {
+        "path": "$.task.status.state",
+        "equals": "TASK_STATE_REJECTED"
+      }
+    ]
+  },
+  "expectRequest": {
+    "checks": [
+      {
+        "path": "$.params.message.metadata",
+        "exists": true
+      }
+    ]
+  },
+  "tags": [
+    "arkavo",
+    "policy",
+    "stub"
+  ],
+  "appliesTo": {
+    "clients": [
+      "arkavo-ext-rust",
+      "arkavo-ext-swift"
+    ],
+    "servers": [
+      "arkavo-ext-rust",
+      "arkavo-ext-swift"
+    ]
+  }
+}

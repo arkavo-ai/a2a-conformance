@@ -1,0 +1,84 @@
+{
+  "id": "arkavo/degradation/vanilla-client-card-decodes",
+  "title": "A vanilla client decodes an extended agent card (extensions, extra interfaces) without error. DRAFT STUB — activates when the arkavo adapters land; expectations follow the spec's conformance section.",
+  "spec": "all arkavo specs — degradation contract sections",
+  "client": {
+    "op": "ResolveCard"
+  },
+  "server": {
+    "card": {
+      "name": "Extended Agent",
+      "description": "Card advertising arkavo extensions.",
+      "version": "1.0.0",
+      "supportedInterfaces": [
+        {
+          "url": "{{baseUrl}}",
+          "protocolBinding": "JSONRPC",
+          "protocolVersion": "1.0"
+        },
+        {
+          "url": "wss://{{baseUrl}}/ws",
+          "protocolBinding": "JSONRPC-WS",
+          "protocolVersion": "1.0"
+        }
+      ],
+      "capabilities": {
+        "streaming": true,
+        "extensions": [
+          {
+            "uri": "https://arkavo.social/ext/a2a/cbor-codec/v1",
+            "required": false
+          },
+          {
+            "uri": "https://arkavo.social/ext/a2a/ws-binding/v1",
+            "required": false
+          }
+        ]
+      },
+      "defaultInputModes": [
+        "text/plain"
+      ],
+      "defaultOutputModes": [
+        "text/plain"
+      ],
+      "skills": [
+        {
+          "id": "s",
+          "name": "S",
+          "description": "d",
+          "tags": [
+            "t"
+          ]
+        }
+      ]
+    }
+  },
+  "expect": {
+    "kind": "card",
+    "checks": [
+      {
+        "path": "$.name",
+        "equals": "Extended Agent"
+      },
+      {
+        "path": "$.supportedInterfaces[0].protocolBinding",
+        "equals": "JSONRPC"
+      }
+    ]
+  },
+  "tags": [
+    "arkavo",
+    "degradation",
+    "stub"
+  ],
+  "appliesTo": {
+    "clients": [
+      "rust-a2a",
+      "tolgaki-swift"
+    ],
+    "servers": [
+      "arkavo-ext-rust",
+      "arkavo-ext-swift"
+    ]
+  }
+}

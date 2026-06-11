@@ -137,7 +137,9 @@ pub fn write_markdown(
                 let skip = cell.iter().filter(|r| r.status == "skip").count();
                 let marker = if client == server { " (self)" } else { "" };
                 let link = format!("cells/{client}--{server}.md");
-                if applicable == 0 && skip > 0 {
+                if cell.iter().all(|r| r.status == "n/a") {
+                    md.push_str(" \u{2013} |");
+                } else if applicable == 0 && skip > 0 {
                     md.push_str(&format!(" [skip×{skip}]({link}){marker} |"));
                 } else {
                     let badge = if pass == applicable { "✅" } else { "❌" };
