@@ -51,7 +51,7 @@ their registered integer keys:
 | `exp` | 4 | expiry, NumericDate | REQUIRED; `exp − iat` MUST be ≤ 300 s (§5) |
 | `iat` | 6 | issued-at, NumericDate | REQUIRED |
 | `cti` | 7 | unique token id (byte string, ≥ 16 random bytes) | REQUIRED |
-| `cnf` | 8 | RFC 8747 confirmation; `COSE_Key` (key 1) holding the agent's P-256 public key | REQUIRED |
+| `cnf` | 8 | RFC 8747 confirmation; `COSE_Key` (key 1) holding the agent's P-256 public key. Carried in v1, **enforced in v2 PoP** — slot reserved so v2 renumbers nothing | REQUIRED |
 
 Verifiers MUST reject tokens missing any required claim, expired tokens
 (±30 s clock skew permitted), and tokens whose `aud` does not identify the
@@ -99,10 +99,12 @@ Authorization: Bearer <base64url(COSE_Sign1 bytes, unpadded)>
 > syntax admits base64url, so this is wire-legal.
 
 For `ws-binding-v1`, the header rides the **WS upgrade request** and
-authenticates the whole connection (per-message re-auth is not in v1; the
-300 s token TTL bounds connection-grant lifetime at the deployment's
-discretion — servers MAY close connections whose upgrade credential has
-expired, but are NOT REQUIRED to in v1).
+authenticates the whole connection. Credential lifetime and connection
+lifetime are decoupled per the pinned rule in `ws-binding-v1.md` §3:
+validation happens once at upgrade, the connection's validity is independent
+of token TTL thereafter, and any server-imposed maximum connection lifetime
+is advertised in the ws-binding extension params. The same rule applies to
+iroh connections (`iroh-discovery-v1.md`).
 
 ## 5. Proof of possession
 
@@ -111,13 +113,29 @@ expired, but are NOT REQUIRED to in v1).
 > change) but verifiers do not demand a possession proof. Replay risk is
 > bounded instead by: `exp − iat` ≤ 300 s (REQUIRED, verifier-enforced),
 > `aud` binding (a stolen token only works against one target), `cti`
-> uniqueness (verifiers MAY keep a 300 s replay cache), and TLS everywhere
+> uniqueness with a pinned replay cache (below), and TLS everywhere
 > (§7.1 core). The rejected alternative — a detached `COSE_Sign1` over
 > `(method, BLAKE3(body), timestamp)` in a second header — is sound but
 > forces body-hash plumbing into every client middleware stack and a
 > canonicalization story for streaming uploads before any cell of the matrix
 > is green. The header name **`X-Arkavo-PoP` is reserved** for v2; v1
 > implementations MUST NOT emit it and MUST ignore it.
+
+**Replay cache (pinned, not optional):** verifiers MUST keep a `cti` replay
+cache with the following properties:
+
+- **Scope:** per verifying agent process (no shared/distributed cache is
+  required or assumed in v1).
+- **Eviction:** an entry MUST live at least until its token's `exp`
+  (i.e. ≥ the token TTL); evicting earlier re-opens the replay window.
+- **Restart behavior:** a restarted verifier has an empty cache, so tokens
+  issued before the restart are replayable within their remaining TTL.
+  v1's default posture is to **accept and document this window** — it is
+  bounded by TLS, `aud` binding, and the ≤ 300 s TTL. Deployments MAY run
+  in strict mode and reject tokens whose `iat` predates process start
+  (closing the window at the cost of rejecting all in-flight tokens for up
+  to 300 s after every deploy); strict mode is a verifier-local choice and
+  MUST NOT be assumed of peers.
 
 ## 6. Card signing (DID-bound)
 
@@ -139,19 +157,29 @@ canonicalization, `signatures` field excluded) with one profile restriction:
 
 **Verification failure behavior:**
 
-> **DECISION (proposed default):** configurable, default
-> **degrade-with-warning** — a card whose signature fails to verify (bad
-> signature, unresolvable DID, expired/revoked key) is treated as
-> **unsigned**: usable, but the client MUST surface a warning and MUST NOT
-> report the card as identity-verified. Exception: when the consumer
-> requires identity (client policy, or it intends to rely on `params.did`
-> for `aud`/authorization decisions), verification failure MUST be a hard
-> reject of the card. Rationale: a tampered *signature* on an otherwise
-> well-formed card is indistinguishable from key-rotation lag; hard-failing
-> by default would make every rotation a global outage, while silent
-> acceptance would make signing theater. Note the asymmetry: a card with
-> **no** signature is simply unsigned (vanilla, no warning); only a
-> *present-but-invalid* signature warrants the warning.
+> **DECISION (reviewed 2026-06-10, split per review):** the two failure
+> modes are not the same severity and get different defaults:
+>
+> - **Signature absent** → **degrade-with-warning**: the card is usable but
+>   MUST NOT be reported as identity-verified, and the client SHOULD surface
+>   that the identity extension expected a signature it didn't find.
+>   (Vanilla cards are unsigned by nature; absence is a missing capability.)
+> - **Signature present but invalid** (bad signature, content mismatch) →
+>   **fail closed**: the client MUST refuse to use the card and MUST surface
+>   the verification error. A present-but-invalid signature is evidence of
+>   tampering or a broken key-rotation process, not a missing capability —
+>   treating it as a warning would undercut the extension's reason to exist.
+>   Key-rotation lag is mitigated by `did:web` re-resolution (the DID
+>   document is fetched at verification time), not by tolerating bad
+>   signatures.
+> - **Unresolvable DID** (network failure, unsupported method) is neither:
+>   verification is *indeterminate*; treat as absent (degrade-with-warning)
+>   unless the consumer requires identity, in which case reject.
+>
+> When the consumer requires identity (client policy, or reliance on
+> `params.did` for `aud`/authorization), every non-verified outcome is a
+> hard reject. The conformance scenario `card-signature-tampered` expects
+> **refusal**, not a warning.
 
 ## 7. Token acquisition (out of scope)
 

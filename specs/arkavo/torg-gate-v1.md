@@ -92,7 +92,7 @@ a JSON-RPC error:
 |---|---|
 | `code` | **−32099** |
 | `message` | `"Refused by policy"` |
-| `data` | §5.4-shaped array of `@type` objects, see below |
+| `data` | §5.4-shaped array of `@type` objects, see below. The array MUST contain exactly one `arkavo.torg.v1.Rejection` object, and its `policyId` and `ruleId` MUST be populated — refusals are required to be debuggable |
 
 ```jsonc
 "data": [

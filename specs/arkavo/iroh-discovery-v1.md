@@ -167,4 +167,9 @@ agents present a fully vanilla HTTPS face. `required` is always `false`.
 Partial matrix acknowledged for Phase 6: native legs run rs↔rs only
 (iroh bindings are Rust-first); Swift participates via the relay gateway
 (`swift-via-relay`). Cells that cannot run a leg report `skip` at selection
-time per the honest-cells rule, never `fail`.
+time per the honest-cells rule, never `fail`.Connection-level authentication follows the credential-vs-connection
+lifetime rule pinned in `ws-binding-v1.md` §3 verbatim: validated at
+connection establishment, independent of token TTL thereafter, optional
+server-imposed maximum lifetime advertised in extension params.
+
+

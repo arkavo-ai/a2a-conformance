@@ -53,7 +53,10 @@ guaranteed *across* ids.
 
 ## 4. Limits
 
-- Max frame size: **16 MiB** (encoded envelope). A peer receiving an oversize
+- Max frame size: frames MUST NOT exceed **16 MiB** (encoded envelope), and
+  endpoints MAY advertise a lower limit via the enclosing transport's
+  extension params (`maxFrameBytes` — constrained targets like watchOS
+  profiles are expected to). The advertised limit governs both directions. A peer receiving an oversize
   frame MUST reply `err` `{code: -33001, message: "frame too large"}` for that
   id — or with `id: ""` when the oversize frame's id is unknowable without
   decoding it — and MAY close the connection. Senders SHOULD chunk large artifacts via

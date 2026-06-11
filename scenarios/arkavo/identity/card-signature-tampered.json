@@ -1,6 +1,6 @@
 {
   "id": "arkavo/identity/card-signature-tampered",
-  "title": "Tampered card signature is detected (degrade-with-warning or reject per consumer policy). DRAFT STUB — activates when the arkavo adapters land; expectations follow the spec's conformance section.",
+  "title": "Present-but-invalid card signature fails closed: the client refuses the card and surfaces the verification error (review 2026-06-10: refusal, not warning). DRAFT STUB — activates when the arkavo adapters land.",
   "spec": "specs/arkavo/aia-identity-v1.md",
   "client": {
     "op": "ResolveCard"

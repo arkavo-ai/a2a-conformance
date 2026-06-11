@@ -51,6 +51,29 @@ mismatch (text frame under cbor, binary under json) is envelope error −33004.
 Authentication (`aia-identity-v1` or any `RequestAuthenticator`) applies to
 the upgrade request; per-message re-authentication is not part of v1.
 
+**Credential lifetime vs connection lifetime (pinned):** credentials are
+validated **once, at upgrade**; connection validity is **independent of the
+credential's TTL** thereafter. A server MUST NOT terminate a connection or
+its exchanges merely because the upgrade token's `exp` has passed. A server
+MAY impose a maximum connection lifetime, which it MUST advertise in the
+extension params (`maxConnectionSeconds`); on reaching it the server closes
+with WS close code 1000 after `fin`-terminating open streams where possible.
+Clients reconnect and re-authenticate with a fresh credential
+(`SubscribeToTask` is the recovery mechanism, §4). This rule exists to kill
+a silent divergence: without it, one implementation validates-at-upgrade-only
+while another kills streams at token expiry, and the difference surfaces as a
+flaky `ws-resubscribe-same-socket` cell.
+
+**Extension params** (`AgentExtension.params` for this URI):
+
+```jsonc
+{
+  "maxConnectionSeconds": 3600,   // optional; absent = no server-imposed lifetime
+  "maxFrameBytes": 1048576        // optional; lower bound advertisement per
+                                  // framing-envelope-v1 §4 (never above 16 MiB)
+}
+```
+
 ## 4. Connection semantics
 
 - Server-initiated close mid-exchange ⇒ clients surface transport errors for
