@@ -36,6 +36,11 @@ let package = Package(
                 .product(name: "A2A", package: "a2a-swift"),
                 .product(name: "A2AClient", package: "a2a-swift"),
                 .product(name: "ArkavoA2AIdentity", package: "arkavo-a2a-swift"),
+                // Phase 4 WS binding (client-only): ws/* and
+                // transport-equivalence/* scenarios drive A2AWSClient against a
+                // Rust ext WS server (ws-binding-v1, WS-HARNESS.md).
+                .product(name: "ArkavoA2AWS", package: "arkavo-a2a-swift"),
+                .product(name: "ArkavoA2AWire", package: "arkavo-a2a-swift"),
                 .product(name: "Crypto", package: "swift-crypto"),
             ]
         ),

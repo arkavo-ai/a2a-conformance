@@ -31,6 +31,7 @@ use arkavo_a2a_identity::{CwtVerifier, did_key_url, sign_card};
 use arkavo_a2a_policy::{
     Decision, GateContext, GatedDispatcher, PolicyEvaluator, ReferenceEvaluator, Rejection,
 };
+use arkavo_a2a_ws::A2AWsServer;
 use async_trait::async_trait;
 use axum::extract::State;
 use axum::response::IntoResponse;
@@ -44,6 +45,11 @@ use tokio::io::AsyncReadExt;
 #[path = "../fixtures.rs"]
 mod fixtures;
 use fixtures::{EXTENSION_URI, IdentityFixtures};
+
+/// Open-form protocol binding for the WebSocket interface (ws-binding-v1 §1).
+/// A2A §5.8 permits open-form bindings; the standard JSONRPC HTTP interface is
+/// always listed first (degradation contract).
+const TRANSPORT_PROTOCOL_JSONRPC_WS: &str = "JSONRPC-WS";
 
 // ---------------------------------------------------------------------------
 // Scenario files (only the parts the server harness needs)
@@ -746,14 +752,32 @@ impl AgentCardProducer for SwappableCard {
     }
 }
 
-fn default_card(public_base_url: &str, fx: &IdentityFixtures) -> AgentCard {
+/// Append the JSONRPC-WS interface to a card's `supported_interfaces` if not
+/// already present (ws-binding-v1 §1: dual-interface advertisement). The
+/// standard JSONRPC HTTP interface stays first (degradation contract); the WS
+/// interface points at the real ephemeral WS port. ws/* and
+/// transport-equivalence/* clients resolve the card and select THIS interface.
+fn advertise_ws_interface(card: &mut AgentCard, ws_base_url: &str) {
+    let already = card
+        .supported_interfaces
+        .iter()
+        .any(|i| i.protocol_binding.eq_ignore_ascii_case(TRANSPORT_PROTOCOL_JSONRPC_WS));
+    if !already {
+        card.supported_interfaces.push(AgentInterface::new(
+            ws_base_url,
+            TRANSPORT_PROTOCOL_JSONRPC_WS,
+        ));
+    }
+}
+
+fn default_card(public_base_url: &str, ws_base_url: &str, fx: &IdentityFixtures) -> AgentCard {
     // The default card always advertises the aia-identity extension with
     // params.did = serverDid (required: false — degradation contract):
     // cwt-auth-success clients read the aud from here, vanilla peers ignore it.
     let mut params: HashMap<String, Value> = HashMap::new();
     params.insert("did".to_string(), json!(fx.server_did));
     params.insert("issuer".to_string(), json!(fx.iss));
-    AgentCard {
+    let mut card = AgentCard {
         name: "Rust Conformance Harness".to_string(),
         description: "Scripted a2a-rs server harness.".to_string(),
         version: "0.1.0".to_string(),
@@ -780,7 +804,9 @@ fn default_card(public_base_url: &str, fx: &IdentityFixtures) -> AgentCard {
         security_schemes: None,
         security_requirements: None,
         signatures: None,
-    }
+    };
+    advertise_ws_interface(&mut card, ws_base_url);
+    card
 }
 
 // ---------------------------------------------------------------------------
@@ -794,6 +820,9 @@ struct CtrlState {
     card: Arc<RwLock<AgentCard>>,
     default_card: AgentCard,
     public_base_url: String,
+    /// ws://127.0.0.1:<wsport>/ — the real WS endpoint advertised on every
+    /// served card so ws/* and transport-equivalence/* clients select it.
+    ws_base_url: String,
     ext: Arc<ExtState>,
 }
 
@@ -863,7 +892,12 @@ async fn handle_select(State(ctrl): State<CtrlState>, Json(body): Json<SelectBod
                 state.scripted = scripted;
                 state.observed = None;
             }
-            *ctrl.card.write().unwrap() = card.unwrap_or_else(|| ctrl.default_card.clone());
+            // Every served card advertises BOTH interfaces (ws-binding-v1 §1).
+            // The default card already carries the WS interface; a scripted
+            // per-scenario card gets it appended here against the real ws port.
+            let mut served = card.unwrap_or_else(|| ctrl.default_card.clone());
+            advertise_ws_interface(&mut served, &ctrl.ws_base_url);
+            *ctrl.card.write().unwrap() = served;
             Json(json!({"ok": true}))
         }
         Err(reason) => {
@@ -928,12 +962,13 @@ async fn main() {
     });
 
     let state: SharedState = Arc::new(Mutex::new(HarnessState::default()));
-    let default = default_card(&public_base_url, &ext.fx);
-    let card = Arc::new(RwLock::new(default.clone()));
 
-    // Both dispatch paths share the one scripted state; the PolicyShim
-    // routes between them per the policy_armed flag (built once, like the
-    // jsonrpc router itself).
+    // Both dispatch paths share the one scripted state; the PolicyShim routes
+    // between them per the policy_armed flag (built once, like the jsonrpc
+    // router itself). The SAME handler Arc backs BOTH the HTTP jsonrpc router
+    // and the WS server, so the identity/policy arming wrappers gate WS
+    // exchanges exactly as they gate HTTP ones (ws-binding-v1 §3 / WS-HARNESS:
+    // a policy/identity scenario could in principle run over WS too).
     let handler = Arc::new(PolicyShim {
         state: state.clone(),
         ext: ext.clone(),
@@ -943,6 +978,20 @@ async fn main() {
             HarnessPolicyEvaluator { ext: ext.clone() },
         ),
     });
+
+    // Bind the WS server FIRST so the real ephemeral ws port is known before
+    // any card is built (the card advertises it). The returned A2AWsServer owns
+    // the accept task and aborts it on Drop, so it must live for the process —
+    // it is moved into the tokio::select! below to stay alive.
+    let ws_server = A2AWsServer::serve("127.0.0.1:0", handler.clone())
+        .await
+        .expect("bind WS port");
+    let ws_port = ws_server.local_addr().port();
+    let ws_base_url = format!("ws://127.0.0.1:{ws_port}/");
+
+    let default = default_card(&public_base_url, &ws_base_url, &ext.fx);
+    let card = Arc::new(RwLock::new(default.clone()));
+
     let producer = Arc::new(SwappableCard { card: card.clone() });
     let a2a_app: Router = jsonrpc_router(handler)
         .merge(agent_card_router(producer))
@@ -957,6 +1006,7 @@ async fn main() {
         card,
         default_card: default,
         public_base_url,
+        ws_base_url: ws_base_url.clone(),
         ext,
     };
     let ctrl_app = Router::new()
@@ -977,6 +1027,7 @@ async fn main() {
         "port": a2a_port,
         "controlPort": ctrl_port,
         "baseUrl": format!("http://127.0.0.1:{a2a_port}"),
+        "wsBaseUrl": ws_base_url,
     });
     println!("READY {ready}");
     std::io::stdout().flush().ok();
@@ -1003,4 +1054,9 @@ async fn main() {
             if let Err(e) = r { eprintln!("server-harness: control server exited: {e}"); }
         }
     }
+
+    // Keep the WS server alive for the whole process lifetime: dropping it
+    // aborts its accept task. (Unreachable in practice — stdin EOF exits the
+    // process — but this pins the lifetime explicitly for the borrow checker.)
+    drop(ws_server);
 }

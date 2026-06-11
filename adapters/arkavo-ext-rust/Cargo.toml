@@ -29,6 +29,10 @@ a2a-pb = { package = "a2a-pb", git = "https://github.com/a2aproject/a2a-rs.git",
 arkavo-a2a-identity = { path = "../../../arkavo-a2a-rs/crates/arkavo-a2a-identity" }
 arkavo-a2a-policy = { path = "../../../arkavo-a2a-rs/crates/arkavo-a2a-policy" }
 arkavo-a2a-wire = { path = "../../../arkavo-a2a-rs/crates/arkavo-a2a-wire" }
+# Phase 4 WebSocket binding (ws-binding-v1): the server harness binds an
+# A2AWsServer over the SAME scripted RequestHandler the HTTP path wraps; the
+# client harness drives A2AWsClient for ws/* and transport-equivalence/*.
+arkavo-a2a-ws = { path = "../../../arkavo-a2a-rs/crates/arkavo-a2a-ws" }
 
 async-trait = "0.1"
 axum = "0.8"

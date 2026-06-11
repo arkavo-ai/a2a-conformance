@@ -225,6 +225,16 @@ actor ScenarioState {
         guard let script = corpus[id] else {
             return (false, "unknown scenario id \(id)")
         }
+        // Phase 4 WS: a2a-swift's WS layer is client-only this phase, so this
+        // server cannot serve the WebSocket interface (ws-binding-v1 §1 /
+        // WS-HARNESS.md). ws/* and transport-equivalence/* scenarios with
+        // server=arkavo-ext-swift are honestly reported as a skip; the gate is
+        // Swift-client → Rust-server (and the rust self-pair). The HTTP-only
+        // legs of these scenarios cannot satisfy the WS binding's intent, so we
+        // refuse rather than masquerade an HTTP pass as a WS pass.
+        if id.hasPrefix("arkavo/ws/") || id.hasPrefix("arkavo/transport-equivalence/") {
+            return (false, "Swift WS server not implemented (client-only this phase)")
+        }
         selected = script
         observedParams = nil
         // arkavo-ext: scenario-keyed identity arming (IDENTITY-HARNESS.md).
