@@ -42,6 +42,10 @@ use tokio::io::AsyncBufReadExt;
 mod fixtures;
 use fixtures::{EXTENSION_URI, IdentityFixtures};
 
+#[path = "../tdf.rs"]
+mod tdf;
+use arkavo_a2a_tdf as tdfsdk;
+
 const IMPL_NAME: &str = "arkavo-ext-rust";
 const DEFAULT_TIMEOUT_MS: u64 = 30000;
 
@@ -821,12 +825,312 @@ async fn run_identity(input: &InputLine) -> Value {
     }
 }
 
+// ---------------------------------------------------------------------------
+// arkavo-ext: scenario-keyed TDF parts (tdf-parts-v1, TDF-HARNESS.md)
+// ---------------------------------------------------------------------------
+
+fn load_tdf_fixtures() -> Result<&'static tdf::TdfFixtures, Value> {
+    static FIXTURES: std::sync::OnceLock<Result<tdf::TdfFixtures, String>> =
+        std::sync::OnceLock::new();
+    match FIXTURES.get_or_init(tdf::TdfFixtures::load) {
+        Ok(fx) => Ok(fx),
+        Err(e) => Err(outcome_harness_error(format!("tdf fixtures unavailable: {e}"))),
+    }
+}
+
+/// Normalize integral floats (e.g. `25.0`) back to JSON integers anywhere in a
+/// value. The a2a-rs wire layer carries `Part.data` as a protobuf Struct, whose
+/// numbers are all f64 — so `ciphertextLength: 25` arrives as `25.0`, which the
+/// strict `u64` manifest parser rejects. Both languages float Struct numbers,
+/// so this normalization is harness-side (the SDK crate stays untouched) and is
+/// safe: it only rewrites floats with no fractional part.
+fn normalize_ints(v: &mut Value) {
+    match v {
+        Value::Number(n) => {
+            if n.as_i64().is_none() && n.as_u64().is_none() {
+                if let Some(f) = n.as_f64() {
+                    if f.fract() == 0.0 && f.abs() < 9.007e15 {
+                        *n = serde_json::Number::from(f as i64);
+                    }
+                }
+            }
+        }
+        Value::Array(items) => items.iter_mut().for_each(normalize_ints),
+        Value::Object(map) => map.values_mut().for_each(normalize_ints),
+        _ => {}
+    }
+}
+
+/// Return a copy of `part` whose Data value has integral floats normalized to
+/// integers (see `normalize_ints`), so the strict manifest parser accepts it.
+fn normalized_part(part: &Part) -> Part {
+    let mut p = part.clone();
+    if let a2a::PartContent::Data(value) = &mut p.content {
+        normalize_ints(value);
+    }
+    p
+}
+
+/// Collect the parts the server delivered (artifact parts), and the SDK-encoded
+/// result value (for the runner's id check). For SendMessage the response is a
+/// Task or Message; for GetTask/CancelTask it is a Task.
+fn collect_parts(parts: &[Part]) -> (Option<&Part>, Vec<String>) {
+    let mut enc_part = None;
+    let mut plaintext_siblings = Vec::new();
+    for p in parts {
+        let is_enc = p
+            .metadata
+            .as_ref()
+            .is_some_and(|m| m.contains_key(tdfsdk::ENC_KEY));
+        if is_enc {
+            enc_part = Some(p);
+        } else if let a2a::PartContent::Text(t) = &p.content {
+            plaintext_siblings.push(t.clone());
+        }
+    }
+    (enc_part, plaintext_siblings)
+}
+
+/// The artifact parts from a typed Task.
+fn task_parts(task: &Task) -> Vec<Part> {
+    task.artifacts
+        .as_ref()
+        .map(|arts| arts.iter().flat_map(|a| a.parts.clone()).collect())
+        .unwrap_or_default()
+}
+
+async fn run_tdf(input: &InputLine) -> Value {
+    let fx = match load_tdf_fixtures() {
+        Ok(f) => f,
+        Err(o) => return o,
+    };
+    let suffix = match input.scenario.strip_prefix("arkavo/tdf/") {
+        Some(s) => s,
+        None => return outcome_harness_error("not a tdf scenario".to_string()),
+    };
+
+    let client = match build_client(&input.base_url).await {
+        Ok(c) => c,
+        Err(e) => return outcome_harness_error(format!("failed to build client: {e}")),
+    };
+
+    // Run the op and obtain the typed result + its parts + the encoded value.
+    let (result_value, parts): (Value, Vec<Part>) = match input.op.as_str() {
+        "SendMessage" => {
+            let req: SendMessageRequest = match decode_params(&input.params) {
+                Ok(r) => r,
+                Err(o) => return o,
+            };
+            match client.send_message(&req).await {
+                Ok(resp) => {
+                    let encoded = match encode_value(&resp) {
+                        Ok(v) => v,
+                        Err(o) => return o,
+                    };
+                    let parts = match &resp {
+                        SendMessageResponse::Task(t) => task_parts(t),
+                        SendMessageResponse::Message(m) => m.parts.clone(),
+                    };
+                    (encoded, parts)
+                }
+                Err(e) => return a2a_error(&e),
+            }
+        }
+        "GetTask" => {
+            let req: GetTaskRequest = match decode_params(&input.params) {
+                Ok(r) => r,
+                Err(o) => return o,
+            };
+            match client.get_task(&req).await {
+                Ok(task) => {
+                    let encoded = match encode_value(&task) {
+                        Ok(v) => v,
+                        Err(o) => return o,
+                    };
+                    (encoded, task_parts(&task))
+                }
+                Err(e) => return a2a_error(&e),
+            }
+        }
+        other => {
+            return json!({"kind": "unsupported",
+                "detail": format!("tdf path does not support op {other}")});
+        }
+    };
+
+    let (enc_part, siblings) = collect_parts(&parts);
+    let Some(enc_part) = enc_part else {
+        return outcome_harness_error("no #enc part in the delivered artifact".to_string());
+    };
+    let sibling = siblings.into_iter().next().unwrap_or_default();
+
+    let tdf_outcome = match suffix {
+        "nanotdf-part-roundtrip" => {
+            let enc_part = &normalized_part(enc_part);
+            match tdfsdk::decrypt_inline(enc_part, &fx.test_dek) {
+                Ok(pt) => {
+                    let plaintext = String::from_utf8_lossy(&pt).to_string();
+                    json!({
+                        "scheme": "nanotdf",
+                        "plaintext": plaintext,
+                        "sibling": sibling,
+                    })
+                }
+                Err(e) => {
+                    return outcome_error(None, format!("roundtrip decrypt failed: {e}"));
+                }
+            }
+        }
+        "tdf-part-wrong-key-fails-closed" => {
+            // Decrypt with the WRONG dek -> GCM auth failure -> fail closed.
+            // The harness maps the wrong-key (KAS) denial to kas-denied.
+            let enc_part = &normalized_part(enc_part);
+            match tdfsdk::decrypt_inline(enc_part, &fx.wrong_dek) {
+                Ok(_pt) => {
+                    return outcome_error(
+                        None,
+                        "fail-closed violated: wrong key yielded plaintext".to_string(),
+                    );
+                }
+                Err(_e) => {
+                    // Surface #error.code = kas-denied on the part (local-only);
+                    // assert no plaintext present, sibling still delivered.
+                    let mut surfaced = enc_part.clone();
+                    tdfsdk::attach_error(&mut surfaced, "kas-denied", Some("unwrap denied"));
+                    let code = surfaced
+                        .metadata
+                        .as_ref()
+                        .and_then(|m| m.get(tdfsdk::ERROR_KEY))
+                        .and_then(|e| e.get("code"))
+                        .and_then(Value::as_str)
+                        .unwrap_or("")
+                        .to_string();
+                    json!({
+                        "errorCode": code,
+                        "plaintextPresent": false,
+                        "sibling": sibling,
+                    })
+                }
+            }
+        }
+        "b3-url-artifact-integrity" => match run_b3(enc_part, &fx.test_dek, &sibling).await {
+            Ok(v) => v,
+            Err(o) => return o,
+        },
+        other => {
+            return json!({"kind": "unsupported",
+                "detail": format!("unknown tdf scenario: {other}")});
+        }
+    };
+
+    // Merge the tdf object into the SDK-encoded result so the runner can check
+    // both the id (SDK result) AND the TDF behavior.
+    let mut value = result_value;
+    if let Some(obj) = value.as_object_mut() {
+        obj.insert("tdf".to_string(), tdf_outcome);
+    } else {
+        value = json!({ "result": value, "tdf": tdf_outcome });
+    }
+    outcome_result(value)
+}
+
+/// b3-url-artifact-integrity: read the url part, verify /b3/<hex> shape, FETCH
+/// the blob over HTTP, verify BLAKE3==#enc.b3, then decrypt the fetched inline
+/// archive. payload-first holds because the server wrote the blob before serving
+/// the message, so the fetch succeeds (the blob was readable on first receipt).
+async fn run_b3(enc_part: &Part, dek: &tdfsdk::Dek, sibling: &str) -> Result<Value, Value> {
+    let a2a::PartContent::Url(url) = &enc_part.content else {
+        return Err(outcome_error(None, "b3 part is not a url part".to_string()));
+    };
+    let enc_meta = enc_part
+        .metadata
+        .as_ref()
+        .and_then(|m| m.get(tdfsdk::ENC_KEY))
+        .cloned()
+        .unwrap_or(Value::Null);
+    let b3_expected = enc_meta
+        .get("b3")
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .to_string();
+
+    // Verify the pinned /b3/<hex> shape (64 lowercase hex chars).
+    let url_shape_ok = url
+        .rsplit_once("/b3/")
+        .map(|(_, hex)| hex == b3_expected && hex.len() == 64 && hex.chars().all(|c| c.is_ascii_hexdigit()))
+        .unwrap_or(false);
+    if !url_shape_ok {
+        return Err(outcome_error(None, format!("b3 url shape invalid: {url}")));
+    }
+
+    // FETCH the blob over HTTP (through the capture proxy).
+    let resp = reqwest::Client::new()
+        .get(url)
+        .send()
+        .await
+        .map_err(|e| outcome_error(None, format!("b3 fetch failed: {e}")))?;
+    if !resp.status().is_success() {
+        // payload-first violated -> the blob was not readable (404 race).
+        return Err(outcome_error(
+            None,
+            format!("b3 fetch returned {} (payload-first violated)", resp.status()),
+        ));
+    }
+    let fetched = resp
+        .bytes()
+        .await
+        .map_err(|e| outcome_error(None, format!("b3 body read failed: {e}")))?
+        .to_vec();
+
+    // Verify integrity: BLAKE3(fetched) == #enc.b3 (fail closed on mismatch).
+    let b3_verified = tdfsdk::verify_b3(&fetched, &b3_expected).is_ok();
+    if !b3_verified {
+        let mut surfaced = enc_part.clone();
+        tdfsdk::attach_error(&mut surfaced, "integrity-failed", Some("b3 mismatch"));
+        return Ok(json!({
+            "urlShapeOk": true,
+            "b3Verified": false,
+            "payloadFirst": true,
+            "errorCode": "integrity-failed",
+            "sibling": sibling,
+        }));
+    }
+
+    // The blob is the inline NanoTDF archive (manifest+ciphertext) as JSON; wrap
+    // it back into a data part and decrypt to the known plaintext.
+    let mut inline: Value = serde_json::from_slice(&fetched)
+        .map_err(|e| outcome_error(None, format!("blob is not inline JSON: {e}")))?;
+    normalize_ints(&mut inline);
+    let mut data_part = a2a::Part::data(inline).with_media_type(tdfsdk::NANOTDF_MEDIA_TYPE);
+    let mut md = std::collections::HashMap::new();
+    md.insert(tdfsdk::ENC_KEY.to_string(), json!({"scheme": "nanotdf", "v": 1}));
+    data_part.metadata = Some(md);
+    let plaintext = match tdfsdk::decrypt_inline(&data_part, dek) {
+        Ok(pt) => String::from_utf8_lossy(&pt).to_string(),
+        Err(e) => return Err(outcome_error(None, format!("b3 decrypt failed: {e}"))),
+    };
+
+    Ok(json!({
+        "urlShapeOk": true,
+        "b3Verified": true,
+        "payloadFirst": true,
+        "plaintext": plaintext,
+        "sibling": sibling,
+    }))
+}
+
 async fn run_op(input: &InputLine) -> Value {
     // Scenario-keyed identity behavior lives here in the harness, exactly
     // like the tolgaki harness's loopback seeding: SDK code paths never see
     // scenario ids.
     if input.scenario.starts_with("arkavo/identity/") {
         return run_identity(input).await;
+    }
+    // TDF parts (tdf-parts-v1, TDF-HARNESS.md): the client decrypts/verifies the
+    // encrypted part and surfaces fail-closed #error metadata. Scenario-keyed in
+    // the harness; the SDK code path stays scenario-blind.
+    if input.scenario.starts_with("arkavo/tdf/") {
+        return run_tdf(input).await;
     }
     // WS binding (ws-binding-v1, WS-HARNESS.md): transport selection by
     // scenario. ws/* drives the SDK WS client; transport-equivalence/* runs the

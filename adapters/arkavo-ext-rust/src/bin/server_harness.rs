@@ -46,6 +46,11 @@ use tokio::io::AsyncReadExt;
 mod fixtures;
 use fixtures::{EXTENSION_URI, IdentityFixtures};
 
+#[path = "../tdf.rs"]
+mod tdf;
+use arkavo_a2a_tdf as tdfsdk;
+use axum::extract::Path as AxumPath;
+
 /// Open-form protocol binding for the WebSocket interface (ws-binding-v1 §1).
 /// A2A §5.8 permits open-form bindings; the standard JSONRPC HTTP interface is
 /// always listed first (degradation contract).
@@ -208,12 +213,23 @@ fn arm(scenario: &ScenarioFile, public_base_url: &str) -> Result<(Scripted, Opti
 
 struct ScriptedHandler {
     state: SharedState,
+    ext: Arc<ExtState>,
 }
 
 impl ScriptedHandler {
     fn observe<T: ProtoJsonPayload>(&self, req: &T) {
         let value = protojson_conv::to_value(req).ok();
         self.state.lock().unwrap().observed = value;
+    }
+
+    /// Record (once) the write_seq at which the referencing message is first
+    /// dispatched to the SDK handler — the payload-first ordering check compares
+    /// this against the blob's `blob_written_at` (TDF-HARNESS.md §b3).
+    fn mark_message_dispatched(&self) {
+        let mut b3 = self.ext.b3.lock().unwrap();
+        if b3.message_dispatched_at.is_none() {
+            b3.message_dispatched_at = Some(b3.write_seq);
+        }
     }
 
     fn scripted(&self) -> Scripted {
@@ -258,6 +274,7 @@ impl RequestHandler for ScriptedHandler {
         req: SendMessageRequest,
     ) -> Result<SendMessageResponse, A2AError> {
         self.observe(&req);
+        self.mark_message_dispatched();
         match self.scripted() {
             Scripted::Error(e) => Err(e),
             Scripted::Send(r) => Ok(r),
@@ -281,6 +298,7 @@ impl RequestHandler for ScriptedHandler {
         req: GetTaskRequest,
     ) -> Result<Task, A2AError> {
         self.observe(&req);
+        self.mark_message_dispatched();
         match self.scripted() {
             Scripted::Error(e) => Err(e),
             Scripted::Task(t) => Ok(t),
@@ -608,9 +626,31 @@ impl RequestHandler for PolicyShim {
 /// cannot be re-armed after construction (it always enforces), so the harness
 /// uses a middleware fn over the same CwtVerifier instead; the verifier (and
 /// thus the §5 replay cache) lives for the whole process.
+/// The b3 blob store for shape-(b) artifacts (tdf-parts-v1 §3). The ciphertext
+/// blob is written here BEFORE the referencing message is served (payload-first
+/// ordering); the `/b3/<hex>` route reads from it. `write_seq` is bumped on each
+/// write so the payload-first ordering is observable: the harness records the
+/// sequence at blob-write time vs. when the message is first dispatched.
+#[derive(Default)]
+struct B3Store {
+    /// hex -> blob bytes.
+    blobs: HashMap<String, Vec<u8>>,
+    /// Monotonic counter: incremented at each blob write.
+    write_seq: u64,
+    /// The write_seq value at the moment the b3 blob for the current scenario
+    /// was uploaded (payload-first marker).
+    blob_written_at: Option<u64>,
+    /// The write_seq value at the moment the referencing message was first
+    /// dispatched to the SDK handler. Payload-first holds iff
+    /// `blob_written_at < message_dispatched_at`.
+    message_dispatched_at: Option<u64>,
+}
+
 struct ExtState {
     /// True while an `arkavo/identity/cwt-*` scenario is selected.
     armed: AtomicBool,
+    /// shape-(b) blob store + payload-first ordering log (TDF-HARNESS.md).
+    b3: Mutex<B3Store>,
     /// True while an `arkavo/policy/*` scenario is selected: dispatch routes
     /// through the GatedDispatcher (POLICY-HARNESS.md server arming table).
     policy_armed: AtomicBool,
@@ -739,6 +779,140 @@ fn build_signed_card(
 }
 
 // ---------------------------------------------------------------------------
+// arkavo-ext: scenario-keyed TDF parts (TDF-HARNESS.md)
+// ---------------------------------------------------------------------------
+
+/// Build a sibling plaintext text part (proves mixed messages, §5).
+fn sibling_part() -> Part {
+    Part::text(tdf::SIBLING_PLAINTEXT)
+}
+
+/// Arm an `arkavo/tdf/*` scenario on the server side (TDF-HARNESS.md server
+/// table). Returns the scripted response carrying the TDF artifact (+ sibling
+/// plaintext part); for the b3 scenario it ALSO writes the ciphertext blob to
+/// the b3 store payload-first and resets the ordering log. The served bytes are
+/// identical for roundtrip and wrong-key (only the client's DEK differs).
+fn arm_tdf(
+    scenario: &ScenarioFile,
+    public_base_url: &str,
+    tdf_fx: &tdf::TdfFixtures,
+    ext: &ExtState,
+) -> Result<Scripted, String> {
+    let server = scenario
+        .server
+        .as_ref()
+        .ok_or("tdf scenario has no server section")?;
+    let respond = server
+        .respond
+        .as_ref()
+        .ok_or("tdf scenario has no server.respond")?;
+
+    // Reset the b3 ordering log for this scenario window.
+    {
+        let mut b3 = ext.b3.lock().unwrap();
+        b3.blob_written_at = None;
+        b3.message_dispatched_at = None;
+    }
+
+    let suffix = scenario
+        .id
+        .strip_prefix("arkavo/tdf/")
+        .ok_or("not a tdf scenario")?;
+
+    // The TDF artifact part(s) injected into the response.
+    let parts: Vec<Part> = match suffix {
+        "nanotdf-part-roundtrip" | "tdf-part-wrong-key-fails-closed" => {
+            // shape-(a): encrypt the known plaintext with the TEST dek (the
+            // server always encrypts with the correct key; the wrong-key leg
+            // differs only on the CLIENT's decrypt key).
+            let enc = tdfsdk::encrypt_inline(
+                tdf::KNOWN_PLAINTEXT.as_bytes(),
+                &tdf_fx.test_dek,
+                tdf::NONCE,
+                tdf::KAS_URL,
+            )
+            .map_err(|e| format!("encrypt_inline failed: {e}"))?;
+            vec![enc, sibling_part()]
+        }
+        "b3-url-artifact-integrity" => {
+            // shape-(b): encrypt the known plaintext, take the wire ciphertext
+            // bytes as the blob, write it payload-first, and reference it by
+            // BLAKE3 hash. The b3 URL uses the PUBLIC base (the capture proxy),
+            // so the client fetches through the proxy.
+            let enc = tdfsdk::encrypt_inline(
+                tdf::KNOWN_PLAINTEXT.as_bytes(),
+                &tdf_fx.test_dek,
+                tdf::NONCE,
+                tdf::KAS_URL,
+            )
+            .map_err(|e| format!("encrypt_inline failed: {e}"))?;
+            // The blob is the full inline data-part value (manifest+ciphertext)
+            // serialized to JSON bytes: a self-describing TDF archive the client
+            // can decrypt after fetching. (The harness IS the gateway.)
+            let a2a::PartContent::Data(inline_value) = &enc.content else {
+                return Err("encrypt_inline did not return a data part".into());
+            };
+            let blob = serde_json::to_vec(inline_value)
+                .map_err(|e| format!("blob serialize failed: {e}"))?;
+            let b3hex = tdfsdk::blake3_hex(&blob);
+
+            // Payload-first: write the blob BEFORE the message is served and
+            // record the write sequence.
+            {
+                let mut store = ext.b3.lock().unwrap();
+                store.write_seq += 1;
+                let seq = store.write_seq;
+                store.blobs.insert(b3hex.clone(), blob);
+                store.blob_written_at = Some(seq);
+            }
+
+            // The #manifest sidecar mirrors the inline manifest (so receivers can
+            // evaluate KAS/policy before fetching).
+            let manifest_sidecar = inline_value
+                .get("manifest")
+                .cloned()
+                .unwrap_or_else(|| json!({}));
+            let url_part = tdfsdk::make_b3_url_part(&b3hex, public_base_url, manifest_sidecar)
+                .expect("blake3_hex is valid b3 hex");
+            vec![url_part, sibling_part()]
+        }
+        other => return Err(format!("unknown tdf scenario: {other}")),
+    };
+
+    let artifact = Artifact {
+        artifact_id: "art-tdf-1".to_string(),
+        name: Some("tdf-artifact".to_string()),
+        description: None,
+        parts,
+        metadata: None,
+        extensions: Some(vec![tdfsdk::EXTENSION_URI.to_string()]),
+    };
+
+    // Inject the artifact into the scripted task/message.
+    match scenario.client.op.as_str() {
+        "SendMessage" => {
+            let mut resp: SendMessageResponse =
+                decode("SendMessageResponse", respond)?;
+            match &mut resp {
+                SendMessageResponse::Task(t) => {
+                    t.artifacts.get_or_insert_with(Vec::new).push(artifact);
+                }
+                SendMessageResponse::Message(m) => {
+                    m.parts.extend(artifact.parts);
+                }
+            }
+            Ok(Scripted::Send(resp))
+        }
+        "GetTask" | "CancelTask" => {
+            let mut task: Task = decode("Task", respond)?;
+            task.artifacts.get_or_insert_with(Vec::new).push(artifact);
+            Ok(Scripted::Task(task))
+        }
+        other => Err(format!("tdf scenario unsupported op: {other}")),
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Swappable agent card producer
 // ---------------------------------------------------------------------------
 
@@ -770,6 +944,16 @@ fn advertise_ws_interface(card: &mut AgentCard, ws_base_url: &str) {
     }
 }
 
+/// tdf-parts-v1 §1 advertisement params (schemes REQUIRED; kas/gateway are
+/// deployment knobs, not trust anchors).
+fn tdf_extension_params() -> HashMap<String, Value> {
+    let mut p: HashMap<String, Value> = HashMap::new();
+    p.insert("schemes".to_string(), json!(["nanotdf", "tdf"]));
+    p.insert("kas".to_string(), json!(["https://kas.arkavo.net"]));
+    p.insert("gateway".to_string(), json!("https://tdf.arkavo.net"));
+    p
+}
+
 fn default_card(public_base_url: &str, ws_base_url: &str, fx: &IdentityFixtures) -> AgentCard {
     // The default card always advertises the aia-identity extension with
     // params.did = serverDid (required: false — degradation contract):
@@ -787,12 +971,22 @@ fn default_card(public_base_url: &str, ws_base_url: &str, fx: &IdentityFixtures)
         )],
         capabilities: AgentCapabilities {
             streaming: Some(true),
-            extensions: Some(vec![AgentExtension {
-                uri: EXTENSION_URI.to_string(),
-                description: None,
-                required: Some(false),
-                params: Some(params),
-            }]),
+            extensions: Some(vec![
+                AgentExtension {
+                    uri: EXTENSION_URI.to_string(),
+                    description: None,
+                    required: Some(false),
+                    params: Some(params),
+                },
+                // tdf-parts-v1 advertisement (required: false — degradation
+                // contract): schemes/kas/gateway per §1.
+                AgentExtension {
+                    uri: tdfsdk::EXTENSION_URI.to_string(),
+                    description: None,
+                    required: Some(false),
+                    params: Some(tdf_extension_params()),
+                },
+            ]),
             ..AgentCapabilities::default()
         },
         default_input_modes: vec!["text/plain".to_string()],
@@ -824,6 +1018,8 @@ struct CtrlState {
     /// served card so ws/* and transport-equivalence/* clients select it.
     ws_base_url: String,
     ext: Arc<ExtState>,
+    /// Test DEKs for the arkavo/tdf/* scenarios (TDF-HARNESS.md).
+    tdf_fx: Arc<tdf::TdfFixtures>,
 }
 
 #[derive(Deserialize)]
@@ -885,6 +1081,29 @@ async fn handle_select(State(ctrl): State<CtrlState>, Json(body): Json<SelectBod
         return Json(json!({"ok": true}));
     }
 
+    // arkavo-ext: scenario-keyed TDF arming (TDF-HARNESS.md). The harness
+    // encrypts/serves the part(s); the default card (advertising the tdf
+    // extension) is served.
+    if id.starts_with("arkavo/tdf/") {
+        match arm_tdf(scenario, &ctrl.public_base_url, &ctrl.tdf_fx, &ctrl.ext) {
+            Ok(scripted) => {
+                {
+                    let mut state = ctrl.state.lock().unwrap();
+                    state.scripted = scripted;
+                    state.observed = None;
+                }
+                let mut served = ctrl.default_card.clone();
+                advertise_ws_interface(&mut served, &ctrl.ws_base_url);
+                *ctrl.card.write().unwrap() = served;
+                return Json(json!({"ok": true}));
+            }
+            Err(reason) => {
+                eprintln!("server-harness: cannot serve tdf {id}: {reason}");
+                return Json(json!({"ok": false, "reason": reason}));
+            }
+        }
+    }
+
     match arm(scenario, &ctrl.public_base_url) {
         Ok((scripted, card)) => {
             {
@@ -910,6 +1129,25 @@ async fn handle_select(State(ctrl): State<CtrlState>, Json(body): Json<SelectBod
 async fn handle_observed(State(ctrl): State<CtrlState>) -> Json<Value> {
     let observed = ctrl.state.lock().unwrap().observed.clone();
     Json(json!({"params": observed}))
+}
+
+/// GET /b3/<hex>: serve the shape-(b) ciphertext blob the harness wrote
+/// payload-first (tdf-parts-v1 §3). 404 if the blob is unknown (a sender
+/// conformance failure would be a 404 race, which payload-first ordering
+/// prevents). mediaType is the pinned TDF archive type.
+async fn handle_b3(
+    State(ext): State<Arc<ExtState>>,
+    AxumPath(hex): AxumPath<String>,
+) -> axum::response::Response {
+    let blob = ext.b3.lock().unwrap().blobs.get(&hex).cloned();
+    match blob {
+        Some(bytes) => (
+            [(axum::http::header::CONTENT_TYPE, tdfsdk::TDF_MEDIA_TYPE)],
+            bytes,
+        )
+            .into_response(),
+        None => (axum::http::StatusCode::NOT_FOUND, "unknown b3 blob").into_response(),
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -953,6 +1191,7 @@ async fn main() {
     };
     let ext = Arc::new(ExtState {
         armed: AtomicBool::new(false),
+        b3: Mutex::new(B3Store::default()),
         policy_armed: AtomicBool::new(false),
         policy_tm_deny: AtomicBool::new(false),
         raw_card: RwLock::new(None),
@@ -960,6 +1199,14 @@ async fn main() {
         kid: did_key_url(fx.server_signing.verifying_key()),
         fx,
     });
+
+    let tdf_fx = match tdf::TdfFixtures::load() {
+        Ok(fx) => Arc::new(fx),
+        Err(e) => {
+            eprintln!("server-harness: TDF fixtures unavailable: {e}");
+            std::process::exit(1);
+        }
+    };
 
     let state: SharedState = Arc::new(Mutex::new(HarnessState::default()));
 
@@ -972,9 +1219,9 @@ async fn main() {
     let handler = Arc::new(PolicyShim {
         state: state.clone(),
         ext: ext.clone(),
-        plain: ScriptedHandler { state: state.clone() },
+        plain: ScriptedHandler { state: state.clone(), ext: ext.clone() },
         gated: GatedDispatcher::new(
-            ScriptedHandler { state: state.clone() },
+            ScriptedHandler { state: state.clone(), ext: ext.clone() },
             HarnessPolicyEvaluator { ext: ext.clone() },
         ),
     });
@@ -993,8 +1240,16 @@ async fn main() {
     let card = Arc::new(RwLock::new(default.clone()));
 
     let producer = Arc::new(SwappableCard { card: card.clone() });
+    // shape-(b) blob route (tdf-parts-v1 §3): GET /b3/<hex> serves the ciphertext
+    // blob the harness wrote payload-first at /select time. The client fetches it
+    // through the capture proxy (the b3 URL uses the public base), so the GET is
+    // wire-observable and the proxy sees it AFTER the message POST.
+    let b3_router: Router = Router::new()
+        .route("/b3/{hex}", get(handle_b3))
+        .with_state(ext.clone());
     let a2a_app: Router = jsonrpc_router(handler)
         .merge(agent_card_router(producer))
+        .merge(b3_router)
         .layer(axum::middleware::from_fn_with_state(
             ext.clone(),
             identity_middleware,
@@ -1008,6 +1263,7 @@ async fn main() {
         public_base_url,
         ws_base_url: ws_base_url.clone(),
         ext,
+        tdf_fx,
     };
     let ctrl_app = Router::new()
         .route("/select", post(handle_select))
