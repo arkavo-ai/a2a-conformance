@@ -62,7 +62,11 @@ let cwtVerifier = CwtVerifier(
         expectedIssuer: identity.iss,
         expectedAudience: identity.serverDid))
 let state = ScenarioState(corpus: corpus, publicBaseUrl: publicBaseUrl, identity: identity)
-let dispatcher = JSONRPCDispatcher(handler: ScriptedHandler(state: state))
+// arkavo-ext: while an arkavo/policy/* scenario is selected, the routing
+// handler dispatches through ArkavoA2APolicy's GatedRequestHandler over the
+// scripted handler (POLICY-HARNESS.md); otherwise the plain scripted path.
+let dispatcher = JSONRPCDispatcher(
+    handler: PolicyRoutingHandler(state: state, scripted: ScriptedHandler(state: state)))
 
 // Stdout is reserved for the single READY line; route all logging to stderr.
 var logger = Logger(

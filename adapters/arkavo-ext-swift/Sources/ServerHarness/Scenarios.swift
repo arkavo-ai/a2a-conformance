@@ -109,6 +109,12 @@ actor ScenarioState {
     /// True while an `arkavo/identity/cwt-*` scenario is selected (the POST
     /// route then enforces Bearer-CWT auth before dispatching to the SDK).
     private var cwtArmed = false
+    /// True while an `arkavo/policy/*` scenario is selected: dispatch routes
+    /// through the GatedRequestHandler (POLICY-HARNESS.md server arming).
+    private var gateArmed = false
+    /// True while `arkavo/policy/gate-deny-task-op-32099` is selected: the
+    /// harness composite evaluator denies every task-management op (TM-001).
+    private var taskOpDenyArmed = false
 
     init(corpus: [String: ScenarioScript], publicBaseUrl: String, identity: IdentityFixtures) {
         self.corpus = corpus
@@ -157,6 +163,14 @@ actor ScenarioState {
 
     func authArmed() -> Bool {
         cwtArmed
+    }
+
+    func policyArmed() -> Bool {
+        gateArmed
+    }
+
+    func policyTaskOpDenyArmed() -> Bool {
+        taskOpDenyArmed
     }
 
     /// Builds the served bytes for the card-signature scenarios: scenario
@@ -215,6 +229,11 @@ actor ScenarioState {
         observedParams = nil
         // arkavo-ext: scenario-keyed identity arming (IDENTITY-HARNESS.md).
         cwtArmed = id.hasPrefix("arkavo/identity/cwt-")
+        // arkavo-ext: scenario-keyed policy arming (POLICY-HARNESS.md). The
+        // gate is armed ONLY while an arkavo/policy/* scenario is selected;
+        // the TM-001 deny-all-task-ops rule only for gate-deny-task-op-32099.
+        gateArmed = id.hasPrefix("arkavo/policy/")
+        taskOpDenyArmed = id == "arkavo/policy/gate-deny-task-op-32099"
         if id == "arkavo/identity/card-signature-valid"
             || id == "arkavo/identity/card-signature-tampered"
         {

@@ -25,6 +25,7 @@ let package = Package(
                 .product(name: "A2AServer", package: "a2a-swift"),
                 .product(name: "Hummingbird", package: "hummingbird"),
                 .product(name: "ArkavoA2AIdentity", package: "arkavo-a2a-swift"),
+                .product(name: "ArkavoA2APolicy", package: "arkavo-a2a-swift"),
                 .product(name: "ArkavoA2AWire", package: "arkavo-a2a-swift"),
                 .product(name: "Crypto", package: "swift-crypto"),
             ]

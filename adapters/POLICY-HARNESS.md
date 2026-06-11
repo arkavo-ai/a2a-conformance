@@ -17,6 +17,11 @@ Both extension layers therefore expose a `PolicyEvaluator` seam
 The harnesses plug in the **reference evaluator** (deterministic, shared
 semantics both languages MUST implement identically):
 
+0. for scenario `gate-deny-task-op-32099` only, the harness arms an
+   additional rule: deny every task-management op with `{policyId:
+   "conformance:reference@v1", ruleId: "TM-001", reason: "task-management
+   refused by policy"}` (the reference evaluator itself stays op-agnostic;
+   the arming is harness-side, like identity's auth arming);
 1. deny with `{policyId: "conformance:reference@v1", ruleId: "TXT-001",
    reason: "matched deny phrase"}` when any text part contains the substring
    `policy-violating`;
@@ -43,6 +48,7 @@ Client harness:
 | scenario | client behavior |
 |---|---|
 | `arkavo/policy/taint-propagation-blocked` | send the scenario's params verbatim — the taint metadata is already in the scenario fixture; the client MUST carry it untouched (spec §4 MUST-propagate). `expectRequest` verifies carriage server-side. |
+| `arkavo/policy/gate-deny-task-op-32099` | plain GetTask; the armed gate denies task-management ops with −32099 (reference rule: the harness arms a deny-all-task-ops decision for this scenario id — rule id `TM-001`, reason "task-management refused by policy"). |
 | other `arkavo/policy/*` | vanilla send; assertions ride the scenario expectations (REJECTED state + metadata presence for deny; COMPLETED for allow). |
 
 Client-side pre-dispatch gating (`ClientGate`) is part of the extension

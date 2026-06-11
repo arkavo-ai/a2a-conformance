@@ -33,6 +33,7 @@ dependencies = [
  "a2a-pb",
  "a2a-server-lf",
  "arkavo-a2a-identity",
+ "arkavo-a2a-policy",
  "arkavo-a2a-wire",
  "async-trait",
  "axum",
@@ -144,6 +145,19 @@ dependencies = [
  "serde_json",
  "thiserror",
  "tower",
+]
+
+[[package]]
+name = "arkavo-a2a-policy"
+version = "0.1.0"
+dependencies = [
+ "a2a-lf",
+ "a2a-server-lf",
+ "async-trait",
+ "futures",
+ "serde",
+ "serde_json",
+ "thiserror",
 ]
 
 [[package]]
