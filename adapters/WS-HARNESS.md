@@ -36,19 +36,25 @@ exercises real interface selection).
 | everything else | HTTP, exactly as today. |
 
 Codec negotiation for `ws-subprotocol-negotiation`: the harness offers
-`[a2a.v1.cbor, a2a.v1.json]` by default; the scenario variant pins which the
-client offers and asserts the negotiated subprotocol (the SDK exposes the
-accepted subprotocol/codec — Rust `A2AWsClient::format()`, Swift the
-connection's negotiated codec).
+`[a2a.v1.cbor, a2a.v1.json]` — **both** subprotocols in preference order, so the
+cell genuinely exercises preference-order negotiation — and asserts the server
+selects `a2a.v1.cbor` (the SDK exposes the accepted subprotocol/codec — Rust
+`A2AWsClient::format()`, Swift the connection's negotiated codec). Other ws
+cells also offer `[a2a.v1.cbor, a2a.v1.json]` so the canonical CBOR binary-frame
+path is exercised wherever the server negotiates it.
 
-## Multiplexing / ordering
+## Connection lifecycle (per-op)
 
-`ws-concurrent-streams-multiplexed` and `ws-resubscribe-same-socket` reuse one
-connection: the client harness keeps the WS connection open across the
-scenario's sub-operations rather than reconnecting. The runner drives one
-scenario at a time, so "same socket" means the harness caches the connection
-keyed on baseUrl for the duration of a WS scenario and tears it down at the
-next `/select`.
+The runner has no `/select` signal for the client harness — it sends one op line
+per scenario, and every multi-step WS behaviour
+(`ws-concurrent-streams-multiplexed`, `ws-resubscribe-same-socket`) runs
+**within a single op-line handler** on one live socket. So the harness opens the
+WS connection inside the scenario's op handler and tears it down at the end of
+that handler (per-op lifecycle). "Same socket" therefore means *within one op
+handler*: re-subscribe reuses the live connection with a fresh id, and the two
+concurrent streams multiplex over the one open connection, before it is closed.
+There is no cross-op connection cache; per-op open/close honours "torn down"
+deterministically and removes any stale-connection risk.
 
 ## §7.3 runtime proof
 

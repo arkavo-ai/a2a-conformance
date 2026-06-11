@@ -13,9 +13,12 @@
 // binary frame). ws-subprotocol-negotiation asserts the negotiated codec via
 // the connection's exposed `negotiatedCodec`.
 //
-// The connection is cached keyed on (wsURL, codec) and reused across a
-// scenario's sub-ops (multiplexing / re-subscribe); a changed key opens a
-// fresh connection (the harness analogue of the runner's next /select).
+// The WS connection is opened inside each scenario's op handler and closed at
+// the end of that handler (per-op lifecycle). All multi-step WS behaviours
+// (re-subscribe, concurrent multiplexing) happen WITHIN a single op-line
+// handler, so the connection never needs to persist across op lines — the
+// harness has no /select signal. Per-op open/close honours WS-HARNESS.md's
+// "torn down" deterministically and removes any stale-connection risk.
 
 import A2A
 import A2AClient
@@ -35,38 +38,20 @@ struct OutcomeError: Error {
     let outcome: JSONValue
 }
 
-/// Process-wide cache of one open WS connection, keyed on (wsURL, codec).
-actor WSConnectionCache {
-    static let shared = WSConnectionCache()
-
-    private var key: String?
-    private var client: A2AWSClient?
-
-    /// Returns a connected client for `wsURL` negotiating `codec`, reusing the
-    /// cached one when the key matches; otherwise closes the old connection and
-    /// opens a fresh one.
-    func client(wsURL: URL, codec: FrameCodec, timeoutMs: Int) async throws -> A2AWSClient {
-        let newKey = "\(wsURL.absoluteString)|\(codec.rawValue)"
-        if newKey == key, let client {
-            return client
-        }
-        if let old = client {
-            await old.close()
-        }
-        client = nil
-        key = nil
-        let configuration = URLSessionConfiguration.ephemeral
-        let seconds = Double(timeoutMs) / 1000.0
-        configuration.timeoutIntervalForRequest = max(seconds, 1)
-        configuration.timeoutIntervalForResource = max(seconds, 1)
-        let connected = try await A2AWSClient.connect(
-            url: wsURL,
-            preferredCodecs: [codec],
-            configuration: configuration)
-        client = connected
-        key = newKey
-        return connected
-    }
+/// Open a fresh WS connection for one scenario op, offering `codecs` in
+/// preference order (ws-binding-v1 §2). The caller closes it at the end of the
+/// op handler (per-op lifecycle — see file header).
+func openWSClient(wsURL: URL, offering codecs: [FrameCodec], timeoutMs: Int) async throws
+    -> A2AWSClient
+{
+    let configuration = URLSessionConfiguration.ephemeral
+    let seconds = Double(timeoutMs) / 1000.0
+    configuration.timeoutIntervalForRequest = max(seconds, 1)
+    configuration.timeoutIntervalForResource = max(seconds, 1)
+    return try await A2AWSClient.connect(
+        url: wsURL,
+        preferredCodecs: codecs,
+        configuration: configuration)
 }
 
 /// Resolve the card's JSONRPC-WS interface URL (ws-binding-v1 §1 — interface
@@ -99,12 +84,18 @@ func resolveWSURL(baseURL: String, transport: URLSessionTransport) async -> Resu
     }
 }
 
-/// The default codec offer (preference order): CBOR then JSON, so the canonical
-/// CBOR binary-frame path is exercised wherever the server negotiates it.
-func wsOffer(for scenario: String) -> FrameCodec {
-    // Preference is CBOR; the SDK connect offers [codec] so this pins it. The
-    // negotiation scenario offers cbor and asserts the server selects it.
-    .cbor
+/// The codec offer (preference order) for a ws scenario. CBOR is preferred so
+/// the canonical CBOR binary-frame path is exercised wherever the server
+/// negotiates it. `ws-subprotocol-negotiation` offers BOTH codecs in preference
+/// order ([cbor, json], WS-HARNESS.md) so it genuinely tests preference-order
+/// negotiation, then asserts the server selects cbor.
+func wsOffer(for scenario: String) -> [FrameCodec] {
+    switch scenario {
+    case "arkavo/ws/ws-subprotocol-negotiation":
+        return [.cbor, .json]
+    default:
+        return [.cbor, .json]
+    }
 }
 
 /// Run one op over a connected A2AWSClient, producing the runner outcome value
@@ -145,27 +136,38 @@ func performWSOp(_ input: InputLine) async -> JSONValue {
     case .failure(let error): return error.outcome
     }
 
-    let codec = wsOffer(for: input.scenario)
+    let codecs = wsOffer(for: input.scenario)
     let client: A2AWSClient
     do {
-        client = try await WSConnectionCache.shared.client(
-            wsURL: wsURL, codec: codec, timeoutMs: input.timeoutMs)
+        client = try await openWSClient(
+            wsURL: wsURL, offering: codecs, timeoutMs: input.timeoutMs)
     } catch {
         return .object([
             "kind": .string("error"), "errorCode": .null,
             "errorMessage": .string("ws connect failed: \(error)"),
         ])
     }
+    // Per-op lifecycle: drive the scenario, then deterministically tear the
+    // connection down before returning (the harness analogue of /select).
+    let outcome = await driveWSScenario(client, input)
+    await client.close()
+    return outcome
+}
 
-    // ws-subprotocol-negotiation: assert the negotiated codec via the SDK's
-    // exposed negotiatedCodec, then run the op (result).
+/// Drive one ws/* scenario over an already-connected client. Multi-step
+/// behaviours (re-subscribe, concurrent multiplexing) run entirely here, within
+/// a single op handler, on one live socket.
+private func driveWSScenario(_ client: A2AWSClient, _ input: InputLine) async -> JSONValue {
+    // ws-subprotocol-negotiation: offered [cbor, json] (preference order); the
+    // server MUST select cbor. Assert via the SDK's exposed negotiatedCodec.
     if input.scenario == "arkavo/ws/ws-subprotocol-negotiation" {
         let negotiated = await client.connection.negotiatedCodec
         guard negotiated == .cbor else {
             return .object([
                 "kind": .string("error"), "errorCode": .null,
                 "errorMessage": .string(
-                    "subprotocol negotiation: offered cbor, got \(negotiated.subprotocol)"),
+                    "subprotocol negotiation: offered [cbor, json], expected cbor, got "
+                        + negotiated.subprotocol),
             ])
         }
         logError("ws negotiated subprotocol \(negotiated.subprotocol)")
@@ -235,10 +237,11 @@ func performTransportEquivalence(_ input: InputLine) async -> JSONValue {
 
     var wsOutcome: JSONValue = .null
     for (label, codec) in legs {
+        // Per-op lifecycle: one fresh connection per leg, closed before moving on.
         let client: A2AWSClient
         do {
-            client = try await WSConnectionCache.shared.client(
-                wsURL: wsURL, codec: codec, timeoutMs: input.timeoutMs)
+            client = try await openWSClient(
+                wsURL: wsURL, offering: [codec], timeoutMs: input.timeoutMs)
         } catch {
             return .object([
                 "kind": .string("error"), "errorCode": .null,
@@ -247,6 +250,7 @@ func performTransportEquivalence(_ input: InputLine) async -> JSONValue {
         }
         let negotiated = await client.connection.negotiatedCodec
         guard negotiated == codec else {
+            await client.close()
             return .object([
                 "kind": .string("error"), "errorCode": .null,
                 "errorMessage": .string(
@@ -255,6 +259,7 @@ func performTransportEquivalence(_ input: InputLine) async -> JSONValue {
             ])
         }
         let outcome = await wsRunOp(client, input)
+        await client.close()
         let comparableWS = comparableOutcome(outcome)
         guard comparableWS == comparableHTTP else {
             return .object([

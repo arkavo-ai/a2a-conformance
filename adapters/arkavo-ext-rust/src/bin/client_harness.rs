@@ -37,7 +37,6 @@ use futures::{FutureExt, StreamExt};
 use serde::Deserialize;
 use serde_json::{Value, json};
 use tokio::io::AsyncBufReadExt;
-use tokio::sync::Mutex as AsyncMutex;
 
 #[path = "../fixtures.rs"]
 mod fixtures;
@@ -340,10 +339,14 @@ async fn run_raw_request(input: &InputLine) -> Value {
 //
 // ws/* and transport-equivalence/* scenarios resolve the card, select its
 // JSONRPC-WS interface, connect the SDK A2AWsClient to the real ws port, and
-// drive the op — emitting the SAME outcome shapes the HTTP path emits. The
-// connection is cached keyed on (baseUrl, codec) and reused across a scenario's
-// sub-ops (multiplexing / re-subscribe); it is torn down when the baseUrl
-// changes (the harness analogue of the runner's next /select).
+// drive the op — emitting the SAME outcome shapes the HTTP path emits. The WS
+// connection is opened inside each scenario's op handler and dropped at the end
+// of that handler (per-op lifecycle). All multi-step WS behaviours (re-subscribe,
+// concurrent multiplexing) happen WITHIN a single op-line handler on one live
+// socket, so the connection never needs to persist across op lines — the harness
+// has no /select signal. Per-op open/close honours WS-HARNESS.md's "torn down"
+// deterministically (A2AWsClient is Arc<WsClientConnection>; dropping the last
+// clone aborts its reader/writer) and removes any stale-connection risk.
 // ---------------------------------------------------------------------------
 
 /// The card's JSONRPC-WS interface URL (ws-binding-v1 §1 — interface
@@ -363,46 +366,14 @@ async fn resolve_ws_url(base_url: &str) -> Result<String, Value> {
         })
 }
 
-/// Process-wide cache of one open WS connection, keyed on (ws_url, codec). The
-/// connection multiplexes a scenario's exchanges; it is replaced when the
-/// baseUrl/codec changes (tear-down at the next effective /select). A2AWsClient
-/// is a cheap Arc clone over the shared connection.
-struct WsCache {
-    key: Option<(String, WireFormat)>,
-    client: Option<A2AWsClient>,
-}
-
-static WS_CACHE: std::sync::OnceLock<AsyncMutex<WsCache>> = std::sync::OnceLock::new();
-
-fn ws_cache() -> &'static AsyncMutex<WsCache> {
-    WS_CACHE.get_or_init(|| {
-        AsyncMutex::new(WsCache {
-            key: None,
-            client: None,
-        })
-    })
-}
-
-/// Connect (or reuse a cached) A2AWsClient for `ws_url`, offering `offer`.
+/// Open a fresh A2AWsClient for `ws_url`, offering `offer` in preference order
+/// (ws-binding-v1 §2). The caller scopes the client to one op handler; when it
+/// (and any clones) drop, the underlying connection's reader/writer abort —
+/// per-op tear-down (see module header).
 async fn ws_client(ws_url: &str, offer: &[WireFormat]) -> Result<A2AWsClient, Value> {
-    // The cache key pins the negotiated codec too: a scenario that forces a
-    // different offer (subprotocol negotiation) opens a fresh connection.
-    let want_codec = offer.first().copied().unwrap_or(WireFormat::Json);
-    let key = (ws_url.to_string(), want_codec);
-    let mut cache = ws_cache().lock().await;
-    if cache.key.as_ref() == Some(&key)
-        && let Some(client) = &cache.client
-    {
-        return Ok(client.clone());
-    }
-    // New endpoint/codec: drop the old connection, connect a new one.
-    cache.client = None;
-    let client = A2AWsClient::connect(ws_url, offer)
+    A2AWsClient::connect(ws_url, offer)
         .await
-        .map_err(|e| outcome_error(None, format!("ws connect failed: {e}")))?;
-    cache.key = Some(key);
-    cache.client = Some(client.clone());
-    Ok(client)
+        .map_err(|e| outcome_error(None, format!("ws connect failed: {e}")))
 }
 
 /// Split a `StreamResponse`-encoded value into the runner's {kind, value} shape.
