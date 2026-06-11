@@ -33,6 +33,11 @@ arkavo-a2a-wire = { path = "../../../arkavo-a2a-rs/crates/arkavo-a2a-wire" }
 # A2AWsServer over the SAME scripted RequestHandler the HTTP path wraps; the
 # client harness drives A2AWsClient for ws/* and transport-equivalence/*.
 arkavo-a2a-ws = { path = "../../../arkavo-a2a-rs/crates/arkavo-a2a-ws" }
+# Phase 5 TDF parts (tdf-parts-v1): the server harness encrypts shape-(a)/(b)
+# parts and serves the b3 blob; the client harness decrypts/verifies and surfaces
+# fail-closed #error metadata (TDF-HARNESS.md). Scenario-keyed in the harness;
+# the SDK code path stays scenario-blind.
+arkavo-a2a-tdf = { path = "../../../arkavo-a2a-rs/crates/arkavo-a2a-tdf" }
 
 async-trait = "0.1"
 axum = "0.8"

@@ -27,6 +27,9 @@ let package = Package(
                 .product(name: "ArkavoA2AIdentity", package: "arkavo-a2a-swift"),
                 .product(name: "ArkavoA2APolicy", package: "arkavo-a2a-swift"),
                 .product(name: "ArkavoA2AWire", package: "arkavo-a2a-swift"),
+                // Phase 5 TDF parts (tdf-parts-v1): the server harness encrypts
+                // shape-(a)/(b) parts and serves the b3 blob (TDF-HARNESS.md).
+                .product(name: "ArkavoA2ATDF", package: "arkavo-a2a-swift"),
                 .product(name: "Crypto", package: "swift-crypto"),
             ]
         ),
@@ -41,6 +44,9 @@ let package = Package(
                 // Rust ext WS server (ws-binding-v1, WS-HARNESS.md).
                 .product(name: "ArkavoA2AWS", package: "arkavo-a2a-swift"),
                 .product(name: "ArkavoA2AWire", package: "arkavo-a2a-swift"),
+                // Phase 5 TDF parts: the client harness decrypts/verifies and
+                // surfaces fail-closed #error metadata (TDF-HARNESS.md).
+                .product(name: "ArkavoA2ATDF", package: "arkavo-a2a-swift"),
                 .product(name: "Crypto", package: "swift-crypto"),
             ]
         ),

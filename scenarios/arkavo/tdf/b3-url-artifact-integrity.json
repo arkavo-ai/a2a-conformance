@@ -1,6 +1,6 @@
 {
   "id": "arkavo/tdf/b3-url-artifact-integrity",
-  "title": "Large artifact as b3/<hash> URL part: payload-first ordering and BLAKE3 integrity. DRAFT STUB — activates when the arkavo adapters land; expectations follow the spec's conformance section.",
+  "title": "Large artifact as /b3/<hash> URL part: the ciphertext blob is uploaded payload-first (readable before the referencing message), the URL matches the pinned /b3/<hex> shape, and the receiver fetches and verifies BLAKE3(fetched)==#enc.b3 then decrypts (tdf-parts-v1 §3, §7).",
   "spec": "specs/arkavo/tdf-parts-v1.md",
   "client": {
     "op": "GetTask",
@@ -23,13 +23,28 @@
       {
         "path": "$.id",
         "equals": "t-tdf-3"
+      },
+      {
+        "path": "$.tdf.urlShapeOk",
+        "equals": true
+      },
+      {
+        "path": "$.tdf.b3Verified",
+        "equals": true
+      },
+      {
+        "path": "$.tdf.payloadFirst",
+        "equals": true
+      },
+      {
+        "path": "$.tdf.plaintext",
+        "equals": "hello tdf"
       }
     ]
   },
   "tags": [
     "arkavo",
-    "tdf",
-    "stub"
+    "tdf"
   ],
   "appliesTo": {
     "clients": [

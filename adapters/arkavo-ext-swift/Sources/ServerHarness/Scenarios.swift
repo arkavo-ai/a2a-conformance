@@ -6,6 +6,7 @@
 
 import A2A
 import ArkavoA2AIdentity
+import ArkavoA2ATDF
 import Crypto
 import Foundation
 
@@ -102,7 +103,10 @@ actor ScenarioState {
     private let corpus: [String: ScenarioScript]
     private let publicBaseUrl: String
     private let identity: IdentityFixtures
+    private let tdf: TDFFixtures
     private let defaultCard: Data
+    /// shape-(b) blob store (hex -> ciphertext bytes), written payload-first.
+    private var b3Blobs: [String: Data] = [:]
     private var selected: ScenarioScript?
     private var servedCard: Data
     private var observedParams: Data?
@@ -116,10 +120,16 @@ actor ScenarioState {
     /// harness composite evaluator denies every task-management op (TM-001).
     private var taskOpDenyArmed = false
 
-    init(corpus: [String: ScenarioScript], publicBaseUrl: String, identity: IdentityFixtures) {
+    init(
+        corpus: [String: ScenarioScript],
+        publicBaseUrl: String,
+        identity: IdentityFixtures,
+        tdf: TDFFixtures
+    ) {
         self.corpus = corpus
         self.publicBaseUrl = publicBaseUrl
         self.identity = identity
+        self.tdf = tdf
         let card = AgentCard(
             name: "Arkavo Conformance Agent",
             description: "Scripted a2a-swift agent for conformance testing.",
@@ -143,7 +153,13 @@ actor ScenarioState {
                         params: [
                             "did": .string(identity.serverDid),
                             "issuer": .string(identity.iss),
-                        ])
+                        ]),
+                    // tdf-parts-v1 advertisement (required: false — degradation
+                    // contract): schemes/kas/gateway per §1.
+                    AgentExtension(
+                        uri: TDFExtension.uri,
+                        required: false,
+                        params: tdfExtensionParams()),
                 ]),
             defaultInputModes: ["text/plain"],
             defaultOutputModes: ["text/plain"],
@@ -235,6 +251,24 @@ actor ScenarioState {
         if id.hasPrefix("arkavo/ws/") || id.hasPrefix("arkavo/transport-equivalence/") {
             return (false, "Swift WS server not implemented (client-only this phase)")
         }
+        // arkavo-ext: scenario-keyed TDF arming (TDF-HARNESS.md). Inject the
+        // encrypted part (+ sibling plaintext) into the scripted respond, write
+        // the b3 blob payload-first, and serve the default (tdf-advertising)
+        // card. The SDK path stays scenario-blind.
+        if id.hasPrefix("arkavo/tdf/") {
+            guard let rewritten = armTDF(script) else {
+                return (false, "cannot arm tdf scenario \(id)")
+            }
+            var tdfScript = script
+            tdfScript.respond = rewritten
+            selected = tdfScript
+            observedParams = nil
+            cwtArmed = false
+            gateArmed = false
+            taskOpDenyArmed = false
+            servedCard = defaultCard
+            return (true, nil)
+        }
         selected = script
         observedParams = nil
         // arkavo-ext: scenario-keyed identity arming (IDENTITY-HARNESS.md).
@@ -294,4 +328,91 @@ actor ScenarioState {
     func observed() -> Data? {
         observedParams
     }
+
+    /// GET /b3/<hex>: the payload-first ciphertext blob, or nil (404).
+    func b3Blob(hex: String) -> Data? {
+        b3Blobs[hex]
+    }
+
+    // MARK: - arkavo-ext: TDF parts arming (TDF-HARNESS.md)
+
+    /// Inject the TDF artifact (+ sibling plaintext part) into the scripted
+    /// respond JSON for an arkavo/tdf/* scenario, and (for b3) write the blob
+    /// payload-first. Returns the rewritten respond Data, or nil on failure.
+    private func armTDF(_ script: ScenarioScript) -> Data? {
+        guard let respondData = script.respond,
+            let respond = decodeJSON(respondData)
+        else {
+            return nil
+        }
+        let suffix = String(script.id.dropFirst("arkavo/tdf/".count))
+
+        let parts: [Part]
+        switch suffix {
+        case "nanotdf-part-roundtrip", "tdf-part-wrong-key-fails-closed":
+            // shape-(a): encrypt the known plaintext with the TEST dek (the
+            // server always encrypts correctly; the wrong-key leg differs only
+            // on the CLIENT's decrypt key).
+            guard
+                let enc = try? TDF.encryptInline(
+                    plaintext: Data(TDFConstants.knownPlaintext.utf8),
+                    dek: tdf.testDEK,
+                    nonce: TDFConstants.nonce,
+                    kasUrl: TDFConstants.kasUrl)
+            else { return nil }
+            parts = [enc, Part.text(TDFConstants.siblingPlaintext)]
+        case "b3-url-artifact-integrity":
+            // shape-(b): encrypt, take the inline archive (manifest+ciphertext)
+            // JSON as the blob, write it payload-first, reference it by BLAKE3.
+            guard
+                let enc = try? TDF.encryptInline(
+                    plaintext: Data(TDFConstants.knownPlaintext.utf8),
+                    dek: tdf.testDEK,
+                    nonce: TDFConstants.nonce,
+                    kasUrl: TDFConstants.kasUrl),
+                case .data(let inlineValue) = enc.content
+            else { return nil }
+            let blob = encodeJSON(inlineValue)
+            let b3hex = blake3Hex(blob)
+            // Payload-first: write the blob BEFORE the message is served.
+            b3Blobs[b3hex] = blob
+            // The b3 URL uses the PUBLIC base (the capture proxy) so the client
+            // fetches through the proxy; the /b3/<hex> path shape is pinned.
+            let manifestSidecar = inlineValue.objectValue?["manifest"]
+            let urlPart = makeB3URLPart(
+                blobHex: b3hex, gateway: publicBaseUrl, tdfManifest: manifestSidecar)
+            parts = [urlPart, Part.text(TDFConstants.siblingPlaintext)]
+        default:
+            return nil
+        }
+
+        let artifact = Artifact(
+            artifactId: "art-tdf-1",
+            name: "tdf-artifact",
+            parts: parts,
+            extensions: [TDFExtension.uri])
+
+        // Inject the artifact into the scripted task/message JSON.
+        guard var members = respond.objectValue else { return nil }
+        let artifactValue = (try? encodeToJSONValueServer(artifact)) ?? .null
+        if var taskMembers = members["task"]?.objectValue {
+            // SendMessage -> {"task": {...}}
+            var artifacts = taskMembers["artifacts"]?.arrayValue ?? []
+            artifacts.append(artifactValue)
+            taskMembers["artifacts"] = .array(artifacts)
+            members["task"] = .object(taskMembers)
+        } else {
+            // GetTask -> {...task...}
+            var artifacts = members["artifacts"]?.arrayValue ?? []
+            artifacts.append(artifactValue)
+            members["artifacts"] = .array(artifacts)
+        }
+        return encodeJSON(.object(members))
+    }
+}
+
+/// Encode any Encodable to a JSONValue (server-side helper).
+func encodeToJSONValueServer<Value: Encodable>(_ value: Value) throws -> JSONValue {
+    let data = try A2AJSON.encoder().encode(value)
+    return try A2AJSON.decoder().decode(JSONValue.self, from: data)
 }

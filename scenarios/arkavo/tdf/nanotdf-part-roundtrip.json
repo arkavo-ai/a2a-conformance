@@ -1,6 +1,6 @@
 {
   "id": "arkavo/tdf/nanotdf-part-roundtrip",
-  "title": "Inline NanoTDF data part encrypts on send and decrypts on receipt. DRAFT STUB — activates when the arkavo adapters land; expectations follow the spec's conformance section.",
+  "title": "Inline NanoTDF data part encrypts on send and decrypts on receipt: the receiver decrypts the shape-(a) part to the byte-identical known plaintext and reads the sibling plaintext part normally (tdf-parts-v1 §2, §7).",
   "spec": "specs/arkavo/tdf-parts-v1.md",
   "client": {
     "op": "SendMessage",
@@ -33,13 +33,24 @@
       {
         "path": "$.task.id",
         "equals": "t-tdf-1"
+      },
+      {
+        "path": "$.tdf.scheme",
+        "equals": "nanotdf"
+      },
+      {
+        "path": "$.tdf.plaintext",
+        "equals": "hello tdf"
+      },
+      {
+        "path": "$.tdf.sibling",
+        "equals": "sibling plaintext"
       }
     ]
   },
   "tags": [
     "arkavo",
-    "tdf",
-    "stub"
+    "tdf"
   ],
   "appliesTo": {
     "clients": [

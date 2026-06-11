@@ -216,6 +216,11 @@ func performOp(_ input: InputLine) async -> JSONValue {
     if input.scenario.hasPrefix("arkavo/identity/") {
         return await performIdentityOp(input)
     }
+    // TDF parts (tdf-parts-v1, TDF-HARNESS.md): decrypt/verify the encrypted
+    // part, surface fail-closed #error metadata. Scenario-keyed in the harness.
+    if input.scenario.hasPrefix("arkavo/tdf/") {
+        return await performTDFOp(input)
+    }
     // WS binding (ws-binding-v1, WS-HARNESS.md): transport selection by
     // scenario. ws/* drives the SDK WS client; transport-equivalence/* runs the
     // op over both HTTP and WS and asserts identical decoded results.

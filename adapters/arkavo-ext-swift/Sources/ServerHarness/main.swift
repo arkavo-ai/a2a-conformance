@@ -18,6 +18,7 @@
 import A2A
 import A2AServer
 import ArkavoA2AIdentity
+import ArkavoA2ATDF
 import Foundation
 import Hummingbird
 import Logging
@@ -54,6 +55,12 @@ do {
 } catch {
     fail("identity fixtures unavailable: \(error)")
 }
+let tdfFixtures: TDFFixtures
+do {
+    tdfFixtures = try TDFFixtures.load()
+} catch {
+    fail("TDF fixtures unavailable: \(error)")
+}
 // One verifier for the whole process: the §5 cti replay cache must be
 // process-scoped, not per-scenario.
 let cwtVerifier = CwtVerifier(
@@ -61,7 +68,8 @@ let cwtVerifier = CwtVerifier(
         trustedIssuerKey: identity.issuerPublicKey,
         expectedIssuer: identity.iss,
         expectedAudience: identity.serverDid))
-let state = ScenarioState(corpus: corpus, publicBaseUrl: publicBaseUrl, identity: identity)
+let state = ScenarioState(
+    corpus: corpus, publicBaseUrl: publicBaseUrl, identity: identity, tdf: tdfFixtures)
 // arkavo-ext: while an arkavo/policy/* scenario is selected, the routing
 // handler dispatches through ArkavoA2APolicy's GatedRequestHandler over the
 // scripted handler (POLICY-HARNESS.md); otherwise the plain scripted path.
@@ -80,6 +88,23 @@ let a2aRouter = Router()
 
 a2aRouter.get(RouterPath(A2AProtocol.agentCardWellKnownPath)) { _, _ in
     jsonResponse(await state.cardData())
+}
+
+// arkavo-ext: shape-(b) blob route (tdf-parts-v1 §3). GET /b3/<hex> serves the
+// ciphertext blob the harness wrote payload-first at /select time. The client
+// fetches it through the capture proxy (the b3 URL uses the public base), so the
+// GET is wire-observable and arrives AFTER the message POST (payload-first).
+a2aRouter.get(RouterPath("/b3/:hex")) { _, context -> Response in
+    guard let hex = context.parameters.get("hex"),
+        let blob = await state.b3Blob(hex: hex)
+    else {
+        return Response(
+            status: .notFound, body: ResponseBody(byteBuffer: ByteBuffer()))
+    }
+    return Response(
+        status: .ok,
+        headers: [.contentType: TDFExtension.tdfMediaType],
+        body: ResponseBody(byteBuffer: ByteBuffer(bytes: blob)))
 }
 
 a2aRouter.post(RouterPath("/")) { request, _ -> Response in
