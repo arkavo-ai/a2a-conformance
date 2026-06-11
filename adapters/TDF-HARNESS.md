@@ -25,9 +25,10 @@ detail, not a change to tdf-parts-v1, which stays KAS-agnostic):
 - **Inline NanoTDF manifest** (the `manifest` object of shape (a)), pinned fields:
   `{"scheme":"nanotdf","v":1,"kasUrl":"https://kas.arkavo.net","nonce":"<b64>","cipher":"AES-256-GCM"}`.
   Real NanoTDF ECDH/ephemeral-key/policy-binding framing is **not** required for
-  conformance — KAS is out of scope; the DEK is provided. Implementations MAY
-  carry extra manifest fields; AAD excludes everything not listed above plus the
-  excluded fields, so extras do not affect the tag. (Keep it minimal in v1.)
+  conformance — KAS is out of scope; the DEK is provided. The v1 manifest is
+  **closed** (`deny_unknown_fields`): a wire manifest carrying fields outside the
+  pinned set is rejected, because such fields would not be covered by the AAD
+  and so would be unauthenticated relative to the ciphertext.
 - **Integrity (shape b):** BLAKE3 of the ciphertext blob, lowercase hex, in
   `Part.url` `/b3/<hex>` and `#enc.b3`.
 
