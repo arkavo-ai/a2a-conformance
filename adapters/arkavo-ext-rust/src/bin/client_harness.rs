@@ -470,16 +470,12 @@ async fn ws_run_op(client: &A2AWsClient, input: &InputLine) -> Value {
     }
 }
 
-/// Codec offer for a ws scenario. `ws-subprotocol-negotiation` pins the offer
-/// per its variant; everything else takes the SDK default ([cbor, json]) so the
-/// CBOR binary-frame path is exercised wherever the server negotiates it.
-fn ws_offer_for(scenario: &str) -> Vec<WireFormat> {
-    match scenario {
-        // The negotiation scenario offers [cbor, json] (preference order) and
-        // asserts the server selects cbor — the canonical-CBOR binary frame.
-        "arkavo/ws/ws-subprotocol-negotiation" => vec![WireFormat::Cbor, WireFormat::Json],
-        _ => vec![WireFormat::Cbor, WireFormat::Json],
-    }
+/// Every ws cell offers both codecs in preference order: the CBOR binary-frame
+/// path is exercised wherever the server negotiates it, and
+/// `ws-subprotocol-negotiation` asserts the server selects cbor from that
+/// ordered offer (canonical-CBOR binary frame).
+fn ws_codec_offer() -> Vec<WireFormat> {
+    vec![WireFormat::Cbor, WireFormat::Json]
 }
 
 /// `arkavo/ws/*`: connect via the SDK WS client to the card's JSONRPC-WS
@@ -489,7 +485,7 @@ async fn run_ws(input: &InputLine) -> Value {
         Ok(u) => u,
         Err(o) => return o,
     };
-    let offer = ws_offer_for(&input.scenario);
+    let offer = ws_codec_offer();
     let client = match ws_client(&ws_url, &offer).await {
         Ok(c) => c,
         Err(o) => return o,

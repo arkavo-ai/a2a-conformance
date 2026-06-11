@@ -85,18 +85,11 @@ func resolveWSURL(baseURL: String, transport: URLSessionTransport) async -> Resu
 }
 
 /// The codec offer (preference order) for a ws scenario. CBOR is preferred so
-/// the canonical CBOR binary-frame path is exercised wherever the server
-/// negotiates it. `ws-subprotocol-negotiation` offers BOTH codecs in preference
-/// order ([cbor, json], WS-HARNESS.md) so it genuinely tests preference-order
-/// negotiation, then asserts the server selects cbor.
-func wsOffer(for scenario: String) -> [FrameCodec] {
-    switch scenario {
-    case "arkavo/ws/ws-subprotocol-negotiation":
-        return [.cbor, .json]
-    default:
-        return [.cbor, .json]
-    }
-}
+/// Every ws cell offers both codecs in preference order ([cbor, json],
+/// WS-HARNESS.md): the CBOR binary-frame path is exercised wherever the server
+/// negotiates it, and `ws-subprotocol-negotiation` asserts the server selects
+/// cbor from that ordered offer — genuine preference-order negotiation.
+let wsCodecOffer: [FrameCodec] = [.cbor, .json]
 
 /// Run one op over a connected A2AWSClient, producing the runner outcome value
 /// (result / stream / error) — the same shapes the HTTP path emits.
@@ -136,7 +129,7 @@ func performWSOp(_ input: InputLine) async -> JSONValue {
     case .failure(let error): return error.outcome
     }
 
-    let codecs = wsOffer(for: input.scenario)
+    let codecs = wsCodecOffer
     let client: A2AWSClient
     do {
         client = try await openWSClient(
