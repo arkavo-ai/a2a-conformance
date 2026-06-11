@@ -8,10 +8,11 @@ are rs↔rs; Swift runs only the relay path.
 
 - The **Rust ext server** additionally starts an iroh `Endpoint` bound to a
   loopback socket, accepting ALPNs `arkavo/a2a/1` and `arkavo/a2a-cbor/1`,
-  serving the same scripted handler + `arkavo/ResolveCard`. Its `NodeAddr`
-  (NodeId + `127.0.0.1:<port>` direct address) is reported in the `READY` line
-  as `irohNodeAddr` (serialized: nodeId + direct addrs), so the client can dial
-  it directly with no discovery service.
+  serving the same scripted handler + `arkavo/ResolveCard`. Its node address (NodeId + `127.0.0.1:<port>` direct address) is reported in
+  the `READY` line as `irohNodeAddr`, serialized as
+  `<z-base-32-node-id>@<ip:port>,<ip:port>…` (the dialable form; a bare
+  `iroh://<node-id>` carries no direct addresses and is un-dialable under the
+  no-discovery hermetic topology — discovery would supply them in production).
 - The **Rust ext server** also starts a **relay gateway**: a plain HTTP server
   that, for `GET/POST /<node-id>/…`, dials the iroh node (using the known
   NodeAddr) and proxies the standard JSONRPC HTTP binding + the well-known card
