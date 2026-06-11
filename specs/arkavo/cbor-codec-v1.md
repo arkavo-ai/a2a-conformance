@@ -47,8 +47,12 @@ Encoders MUST emit RFC 8949 §4.2.1 **Core Deterministic Encoding**:
 > implementing the ordering natively. **The spec, not the library default, is
 > normative.** Cross-language byte-identity is enforced by `scenarios/arkavo/wire/`.
 
-Decoders MUST accept any well-formed CBOR (liberal in what you accept) but
-MUST NOT emit non-deterministic form.
+Decoders MUST accept any well-formed CBOR **within the v1 document model**:
+non-shortest-form heads and indefinite-length items MUST be accepted (liberal
+in what you accept), but tags, bignums, and simple values outside
+false/true/null/floats MUST be rejected (they are outside the v1 mapping, §3),
+and duplicate map keys MUST be rejected (§2 rule 4). Decoders MUST NOT emit
+non-deterministic form.
 
 ## 3. JSON ↔ CBOR mapping
 
@@ -60,9 +64,14 @@ The CBOR document model is the JSON model with these refinements:
 | array | array | — |
 | string | text string | — |
 | `true`/`false`/`null` | simple values 21/20/22 | — |
-| number (integer-valued) | major type 0/1 integer | integers MUST NOT be encoded as floats |
+| number (integer-valued) | major type 0/1 integer | integer-valued numbers are ALWAYS integers, never floats — `10.0` encodes as `0x0a`. The float-width rule below applies only to values with a fractional part |
 | number (fractional) | float, shortest width preserving the value exactly | half → single → double |
 | **`Part.raw` base64 string** | **byte string (major type 2)** | see §4 |
+
+The JSON document model is IEEE-754 double precision: integer values with
+|v| > 2^53 are outside the interoperable JSON range and round-trip lossily —
+v1 inherits that JSON limitation rather than pretending CBOR fixes it
+(CBOR integers beyond the double range MUST NOT be emitted).
 
 No CBOR tags in v1. Enum strings (`TASK_STATE_*`, `ROLE_*`, `kind` values)
 remain **text strings** — an integer registry is a v2 optimization deliberately

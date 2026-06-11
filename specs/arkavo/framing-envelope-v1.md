@@ -55,7 +55,8 @@ guaranteed *across* ids.
 
 - Max frame size: **16 MiB** (encoded envelope). A peer receiving an oversize
   frame MUST reply `err` `{code: -33001, message: "frame too large"}` for that
-  id and MAY close the connection. Senders SHOULD chunk large artifacts via
+  id — or with `id: ""` when the oversize frame's id is unknowable without
+  decoding it — and MAY close the connection. Senders SHOULD chunk large artifacts via
   `TaskArtifactUpdateEvent.append` instead of approaching the limit, or use
   `b3/<hash>` URL parts (`tdf-parts-v1.md`).
 - Keep-alive is the transport's job (WS ping/pong frames; iroh keepalive) —
@@ -70,7 +71,7 @@ Negative range −33000…−33099, disjoint from JSON-RPC and A2A §5.4 codes:
 | −33000 | malformed envelope (undecodable, missing required field, bad `v`) |
 | −33001 | frame too large |
 | −33002 | unknown `kind` |
-| −33003 | `ev`/`fin` for an id with no open exchange |
+| −33003 | `ev`/`fin`/`res` for an id with no open exchange (receivers SHOULD drop the frame and MAY report this code) |
 | −33004 | codec mismatch (payload not decodable under the negotiated codec) |
 
 ## 6. Connection lifecycle
