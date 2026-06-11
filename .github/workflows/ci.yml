@@ -26,11 +26,27 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - name: Select Xcode
         run: sudo xcode-select -s /Applications/Xcode.app
+      # Explicit core cells only: the arkavo-ext-* adapters depend on the
+      # private arkavo-a2a-rs / arkavo-a2a-swift checkouts (path deps, §7.5
+      # licensing pending), so public CI cannot build them. The runner only
+      # builds implementations referenced by the selected cells, so listing
+      # the 9 core cells keeps the ext adapters out of the build entirely.
+      # Extension cells run locally / on self-hosted runners; their evidence
+      # is the committed reports/baseline-ext.ndjson (IDENTITY-HARNESS.md).
       - name: Run matrix
         run: |
           cargo build --release --manifest-path runner/Cargo.toml
           ./runner/target/release/a2a-conformance-runner run \
-            --baseline reports/baseline.ndjson --report reports-ci
+            --baseline reports/baseline.ndjson --report reports-ci \
+            --cell client=rust-a2a,server=rust-a2a \
+            --cell client=rust-a2a,server=arkavo-swift \
+            --cell client=rust-a2a,server=tolgaki-swift \
+            --cell client=arkavo-swift,server=rust-a2a \
+            --cell client=arkavo-swift,server=arkavo-swift \
+            --cell client=arkavo-swift,server=tolgaki-swift \
+            --cell client=tolgaki-swift,server=rust-a2a \
+            --cell client=tolgaki-swift,server=arkavo-swift \
+            --cell client=tolgaki-swift,server=tolgaki-swift
       - name: Upload reports
         if: always()
         uses: actions/upload-artifact@v4

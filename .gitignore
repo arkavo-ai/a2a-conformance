@@ -6,4 +6,8 @@ Package.resolved
 reports/*
 !reports/baseline.ndjson
 !reports/matrix.md
+# Extension-cell evidence (IDENTITY-HARNESS.md): regenerated locally on every
+# extension change; public CI cannot produce it (private arkavo-a2a-* deps).
+!reports/baseline-ext.ndjson
+!reports/matrix-ext.md
 __pycache__/

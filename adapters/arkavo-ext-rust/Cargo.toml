@@ -1,0 +1,40 @@
+[package]
+name = "a2a-conformance-arkavo-ext-rust"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[workspace]
+
+[[bin]]
+name = "server-harness"
+path = "src/bin/server_harness.rs"
+
+[[bin]]
+name = "client-harness"
+path = "src/bin/client_harness.rs"
+
+[dependencies]
+url = "2"
+# Same SDK pin as the core adapter (adapters/rust): the ext adapter IS that
+# adapter, extended with the arkavo identity layer.
+a2a = { package = "a2a-lf", git = "https://github.com/a2aproject/a2a-rs.git", rev = "7676ec9f2ef53a0daafb08d8ea0d4436e3075078" }
+a2a-client = { package = "a2a-client-lf", git = "https://github.com/a2aproject/a2a-rs.git", rev = "7676ec9f2ef53a0daafb08d8ea0d4436e3075078", default-features = false }
+a2a-server = { package = "a2a-server-lf", git = "https://github.com/a2aproject/a2a-rs.git", rev = "7676ec9f2ef53a0daafb08d8ea0d4436e3075078", default-features = false }
+a2a-pb = { package = "a2a-pb", git = "https://github.com/a2aproject/a2a-rs.git", rev = "7676ec9f2ef53a0daafb08d8ea0d4436e3075078" }
+
+# Extension layer under test. Path deps on the local checkout only: the
+# arkavo-a2a-rs repo stays private until the §7.5 licensing decision, so this
+# adapter builds only where that checkout exists (self-hosted / local runs).
+arkavo-a2a-identity = { path = "../../../arkavo-a2a-rs/crates/arkavo-a2a-identity" }
+arkavo-a2a-wire = { path = "../../../arkavo-a2a-rs/crates/arkavo-a2a-wire" }
+
+async-trait = "0.1"
+axum = "0.8"
+base64 = "0.22"
+futures = "0.3"
+p256 = { version = "0.13", features = ["ecdsa", "pem"] }
+reqwest = { version = "0.13", default-features = false, features = ["json"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "io-std", "io-util", "time"] }

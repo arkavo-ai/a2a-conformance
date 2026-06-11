@@ -23,14 +23,24 @@ client = "adapters/tolgaki-swift/.build/release/ClientHarness"
 server = "adapters/tolgaki-swift/.build/release/ServerHarness"
 notes = "community Swift SDK (v1.0 + v0.3 compat)"
 
+[implementations.arkavo-ext-rust]
+# a2a-rs (same pin as rust-a2a) + arkavo-a2a-rs identity layer (CWT auth,
+# DID-bound card signing); referenced by scenarios/arkavo/**.appliesTo
+build = "cargo build --release --manifest-path adapters/arkavo-ext-rust/Cargo.toml"
+client = "adapters/arkavo-ext-rust/target/release/client-harness"
+server = "adapters/arkavo-ext-rust/target/release/server-harness"
+notes = "extension adapter — requires local arkavo-a2a-* checkouts (private until §7.5)"
+
+[implementations.arkavo-ext-swift]
+# a2a-swift 0.1.1 (same pin as arkavo-swift) + arkavo-a2a-swift identity layer
+build = "swift build -c release --package-path adapters/arkavo-ext-swift"
+client = "adapters/arkavo-ext-swift/.build/release/ClientHarness"
+server = "adapters/arkavo-ext-swift/.build/release/ServerHarness"
+notes = "extension adapter — requires local arkavo-a2a-* checkouts (private until §7.5)"
+
 [matrix]
-clients = ["rust-a2a", "arkavo-swift", "tolgaki-swift"]
-servers = ["rust-a2a", "arkavo-swift", "tolgaki-swift"]
+clients = ["rust-a2a", "arkavo-swift", "tolgaki-swift", "arkavo-ext-rust", "arkavo-ext-swift"]
+servers = ["rust-a2a", "arkavo-swift", "tolgaki-swift", "arkavo-ext-rust", "arkavo-ext-swift"]
 
 [runner]
 timeout_ms = 30000
-
-# Future extension implementations (arkavo-a2a-rs / arkavo-a2a-swift wrappers)
-# will register as `arkavo-ext-rust` and `arkavo-ext-swift` — names referenced
-# by scenarios/arkavo/**.appliesTo. Until those adapters land, every arkavo/*
-# scenario reports n/a in all cells.
