@@ -38,7 +38,7 @@ Server harness (`arkavo-ext-rust` / `arkavo-ext-swift`), on `/select`:
 
 | scenario | server arming |
 |---|---|
-| `arkavo/identity/cwt-auth-success`, `cwt-expired`, `cwt-wrong-audience` | **auth required**: HTTP layer verifies Bearer CWT per spec (trust root = test-issuer pub, expected aud = own DID = serverDid, replay cache on). 401 (missing/invalid/expired, with `WWW-Authenticate`), 403 (valid but wrong aud). The scripted A2A handler behind it is the normal one. |
+| `arkavo/identity/cwt-auth-success`, `cwt-expired`, `cwt-wrong-audience` | **auth required**: HTTP layer verifies Bearer CWT per spec (trust root = test-issuer pub, expected aud = own DID = serverDid, replay cache on). 401 with `WWW-Authenticate: Bearer error="invalid_token"` for missing/invalid/expired/**wrong-audience** credentials (RFC 6750: the token is not valid for use at this resource; spec §8). 403 is reserved for authenticated-but-unauthorized, which Phase 1 scenarios do not exercise. The scripted A2A handler behind it is the normal one. |
 | `arkavo/identity/card-signature-valid` | serve `manifest.vectors.signedCard` with `{{baseUrl}}` substituted **before signing at /select time** (the harness re-signs after substitution so the signature covers the served bytes' canonical form). |
 | `arkavo/identity/card-signature-tampered` | serve the re-signed card with one post-signing content mutation (flip one character of `description`). |
 | every other scenario (incl. all core/ and arkavo/degradation/) | **auth NOT armed** — vanilla behavior; this is the degradation contract in action. |
@@ -49,7 +49,7 @@ Client harness, scenario-keyed credential selection:
 |---|---|
 | `cwt-auth-success` | resolve card → read target DID from extension params (fallback: serverDid from manifest) → mint fresh CWT (test-client key, aud = target DID, iss per spec, TTL 240s) → present per spec §4 → run op |
 | `cwt-expired` | mint CWT with `exp` 60s in the past → present → op. Expected: SDK surfaces transport-level auth failure → outcome `error`, `errorCode` null, `errorMessage` carrying the HTTP status |
-| `cwt-wrong-audience` | mint fresh CWT with aud = throwaway DID → present → op. Expected: 403 → outcome `error` |
+| `cwt-wrong-audience` | mint fresh CWT with aud = throwaway DID → present → op. Expected: 401 `invalid_token` → outcome `error` |
 | `card-signature-valid` | ResolveCard with verification ON (fail-closed mode: consumer requires identity) → outcome `card` on verified success |
 | `card-signature-tampered` | same → verification fails → outcome `error` (spec §6: present-but-invalid fails closed) |
 | every other scenario | no credentials attached (vanilla client path) |

@@ -225,7 +225,9 @@ deviates from core.
 
 - `cwt-auth-success` — valid CWT (all §2 claims, ES256, in-window) ⇒ request
   authenticated, operation proceeds.
-- `cwt-expired` — `exp` in the past beyond skew ⇒ HTTP 401,
+- `cwt-expired` — `exp` in the past beyond skew (±30 s clock skew allowance;
+  the same skew bounds future-dated `iat`, which verifiers MUST reject
+  beyond it) ⇒ HTTP 401,
   `error="invalid_token"`; JSON-RPC layer never reached (wire capture MUST
   show no JSON-RPC response body envelope).
 - `cwt-wrong-audience` — `aud` names a different DID ⇒ HTTP 401,
@@ -233,5 +235,5 @@ deviates from core.
 - `card-signature-valid` — DID-bound `kid`, resolvable `did:key` ⇒ verifier
   reports identity-verified card.
 - `card-signature-tampered` — one byte of canonical payload altered ⇒
-  default mode: card usable, warning surfaced, NOT identity-verified;
-  require-identity mode: card rejected.
+  **fail closed in every mode** (§6: a present-but-invalid signature is
+  refused; the client MUST NOT use the card). The scenario expects refusal.
