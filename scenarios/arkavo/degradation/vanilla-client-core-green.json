@@ -1,0 +1,54 @@
+{
+  "id": "arkavo/degradation/vanilla-client-core-green",
+  "title": "A vanilla client against an extended server: core SendMessage unaffected by extensions. DRAFT STUB — activates when the arkavo adapters land; expectations follow the spec's conformance section.",
+  "spec": "all arkavo specs — degradation contract sections",
+  "client": {
+    "op": "SendMessage",
+    "params": {
+      "message": {
+        "messageId": "m-1",
+        "role": "ROLE_USER",
+        "parts": [
+          {
+            "text": "vanilla hello"
+          }
+        ]
+      }
+    }
+  },
+  "server": {
+    "respond": {
+      "task": {
+        "id": "t-deg-1",
+        "contextId": "c-1",
+        "status": {
+          "state": "TASK_STATE_COMPLETED"
+        }
+      }
+    }
+  },
+  "expect": {
+    "kind": "result",
+    "checks": [
+      {
+        "path": "$.task.id",
+        "equals": "t-deg-1"
+      }
+    ]
+  },
+  "tags": [
+    "arkavo",
+    "degradation",
+    "stub"
+  ],
+  "appliesTo": {
+    "clients": [
+      "rust-a2a",
+      "tolgaki-swift"
+    ],
+    "servers": [
+      "arkavo-ext-rust",
+      "arkavo-ext-swift"
+    ]
+  }
+}

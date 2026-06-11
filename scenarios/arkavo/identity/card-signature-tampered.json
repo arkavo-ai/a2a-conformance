@@ -1,0 +1,60 @@
+{
+  "id": "arkavo/identity/card-signature-tampered",
+  "title": "Present-but-invalid card signature fails closed: the client refuses the card and surfaces the verification error (review 2026-06-10: refusal, not warning). DRAFT STUB — activates when the arkavo adapters land.",
+  "spec": "specs/arkavo/aia-identity-v1.md",
+  "client": {
+    "op": "ResolveCard"
+  },
+  "server": {
+    "card": {
+      "name": "Tampered Agent",
+      "description": "Signature does not match content.",
+      "version": "1.0.0",
+      "supportedInterfaces": [
+        {
+          "url": "{{baseUrl}}",
+          "protocolBinding": "JSONRPC",
+          "protocolVersion": "1.0"
+        }
+      ],
+      "capabilities": {
+        "streaming": true
+      },
+      "defaultInputModes": [
+        "text/plain"
+      ],
+      "defaultOutputModes": [
+        "text/plain"
+      ],
+      "skills": [
+        {
+          "id": "s",
+          "name": "S",
+          "description": "d",
+          "tags": [
+            "t"
+          ]
+        }
+      ]
+    }
+  },
+  "expect": {
+    "kind": "error",
+    "errorCode": null
+  },
+  "tags": [
+    "arkavo",
+    "identity",
+    "stub"
+  ],
+  "appliesTo": {
+    "clients": [
+      "arkavo-ext-rust",
+      "arkavo-ext-swift"
+    ],
+    "servers": [
+      "arkavo-ext-rust",
+      "arkavo-ext-swift"
+    ]
+  }
+}

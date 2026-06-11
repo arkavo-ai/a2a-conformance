@@ -95,40 +95,48 @@ impl Scenario {
     }
 
     pub fn group(&self) -> &str {
-        self.id.split('/').next().unwrap_or("")
+        self.id.rsplit_once('/').map(|(g, _)| g).unwrap_or("")
     }
 }
 
+fn collect_json_files(dir: &Path, out: &mut Vec<std::path::PathBuf>) -> Result<()> {
+    for entry in std::fs::read_dir(dir).with_context(|| format!("reading {}", dir.display()))? {
+        let entry = entry?;
+        let path = entry.path();
+        if entry.file_type()?.is_dir() {
+            collect_json_files(&path, out)?;
+        } else if path.extension().and_then(|e| e.to_str()) == Some("json") {
+            out.push(path);
+        }
+    }
+    Ok(())
+}
+
 pub fn load_all(dir: &Path) -> Result<Vec<Scenario>> {
+    let root = dir
+        .canonicalize()
+        .with_context(|| format!("resolving {}", dir.display()))?;
+    let mut files = Vec::new();
+    collect_json_files(&root, &mut files)?;
+
     let mut scenarios = Vec::new();
-    for group in std::fs::read_dir(dir).with_context(|| format!("reading {}", dir.display()))? {
-        let group = group?;
-        if !group.file_type()?.is_dir() {
-            continue;
-        }
-        for entry in std::fs::read_dir(group.path())? {
-            let entry = entry?;
-            let path = entry.path();
-            if path.extension().and_then(|e| e.to_str()) != Some("json") {
-                continue;
-            }
-            let text = std::fs::read_to_string(&path)?;
-            let scenario: Scenario = serde_json::from_str(&text)
-                .with_context(|| format!("parsing {}", path.display()))?;
-            let expected_id = format!(
-                "{}/{}",
-                group.file_name().to_string_lossy(),
-                path.file_stem().unwrap().to_string_lossy()
+    for path in files {
+        let text = std::fs::read_to_string(&path)?;
+        let scenario: Scenario =
+            serde_json::from_str(&text).with_context(|| format!("parsing {}", path.display()))?;
+        let expected_id = path
+            .with_extension("")
+            .strip_prefix(&root)
+            .map(|p| p.to_string_lossy().replace('\\', "/"))
+            .unwrap_or_default();
+        if scenario.id != expected_id {
+            bail!(
+                "scenario id {:?} does not match its path ({})",
+                scenario.id,
+                expected_id
             );
-            if scenario.id != expected_id {
-                bail!(
-                    "scenario id {:?} does not match its path ({})",
-                    scenario.id,
-                    expected_id
-                );
-            }
-            scenarios.push(scenario);
         }
+        scenarios.push(scenario);
     }
     scenarios.sort_by(|a, b| a.id.cmp(&b.id));
     Ok(scenarios)

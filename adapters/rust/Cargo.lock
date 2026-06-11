@@ -5,6 +5,7 @@ version = 4
 [[package]]
 name = "a2a-client-lf"
 version = "0.2.0"
+source = "git+https://github.com/a2aproject/a2a-rs.git?rev=7676ec9f2ef53a0daafb08d8ea0d4436e3075078#7676ec9f2ef53a0daafb08d8ea0d4436e3075078"
 dependencies = [
  "a2a-lf",
  "a2a-pb",
@@ -44,6 +45,7 @@ dependencies = [
 [[package]]
 name = "a2a-lf"
 version = "0.3.0"
+source = "git+https://github.com/a2aproject/a2a-rs.git?rev=7676ec9f2ef53a0daafb08d8ea0d4436e3075078#7676ec9f2ef53a0daafb08d8ea0d4436e3075078"
 dependencies = [
  "base64",
  "chrono",
@@ -56,6 +58,7 @@ dependencies = [
 [[package]]
 name = "a2a-pb"
 version = "0.1.8"
+source = "git+https://github.com/a2aproject/a2a-rs.git?rev=7676ec9f2ef53a0daafb08d8ea0d4436e3075078#7676ec9f2ef53a0daafb08d8ea0d4436e3075078"
 dependencies = [
  "a2a-lf",
  "chrono",
@@ -75,6 +78,7 @@ dependencies = [
 [[package]]
 name = "a2a-server-lf"
 version = "0.4.0"
+source = "git+https://github.com/a2aproject/a2a-rs.git?rev=7676ec9f2ef53a0daafb08d8ea0d4436e3075078#7676ec9f2ef53a0daafb08d8ea0d4436e3075078"
 dependencies = [
  "a2a-lf",
  "a2a-pb",

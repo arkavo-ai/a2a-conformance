@@ -1,0 +1,56 @@
+{
+  "id": "arkavo/wire/content-negotiation-fallback-to-json",
+  "title": "A peer that does not negotiate CBOR gets plain JSON (degradation contract). DRAFT STUB — activates when the arkavo adapters land; expectations follow the spec's conformance section.",
+  "spec": "specs/arkavo/cbor-codec-v1.md §5",
+  "client": {
+    "op": "SendMessage",
+    "params": {
+      "message": {
+        "messageId": "m-1",
+        "role": "ROLE_USER",
+        "parts": [
+          {
+            "text": "json only please"
+          }
+        ]
+      }
+    }
+  },
+  "server": {
+    "respond": {
+      "message": {
+        "messageId": "m-r",
+        "role": "ROLE_AGENT",
+        "parts": [
+          {
+            "text": "json reply"
+          }
+        ]
+      }
+    }
+  },
+  "expect": {
+    "kind": "result",
+    "checks": [
+      {
+        "path": "$.message.parts[0].text",
+        "equals": "json reply"
+      }
+    ]
+  },
+  "tags": [
+    "arkavo",
+    "wire",
+    "stub"
+  ],
+  "appliesTo": {
+    "clients": [
+      "arkavo-ext-rust",
+      "arkavo-ext-swift"
+    ],
+    "servers": [
+      "arkavo-ext-rust",
+      "arkavo-ext-swift"
+    ]
+  }
+}

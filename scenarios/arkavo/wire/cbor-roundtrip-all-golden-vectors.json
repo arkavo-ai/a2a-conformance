@@ -1,0 +1,45 @@
+{
+  "id": "arkavo/wire/cbor-roundtrip-all-golden-vectors",
+  "title": "Every core golden vector round-trips JSON→types→CBOR→types→JSON; canonical CBOR bytes identical across implementations. DRAFT STUB — activates when the arkavo adapters land; expectations follow the spec's conformance section.",
+  "spec": "specs/arkavo/cbor-codec-v1.md §6",
+  "client": {
+    "op": "GetTask",
+    "params": {
+      "id": "t-cbor-1"
+    }
+  },
+  "server": {
+    "respond": {
+      "id": "t-cbor-1",
+      "contextId": "c-1",
+      "status": {
+        "state": "TASK_STATE_COMPLETED"
+      }
+    }
+  },
+  "expect": {
+    "kind": "result",
+    "checks": [
+      {
+        "path": "$.id",
+        "equals": "t-cbor-1"
+      }
+    ]
+  },
+  "tags": [
+    "arkavo",
+    "wire",
+    "cbor",
+    "stub"
+  ],
+  "appliesTo": {
+    "clients": [
+      "arkavo-ext-rust",
+      "arkavo-ext-swift"
+    ],
+    "servers": [
+      "arkavo-ext-rust",
+      "arkavo-ext-swift"
+    ]
+  }
+}

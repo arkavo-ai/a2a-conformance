@@ -8,8 +8,8 @@
   "properties": {
     "id": {
       "type": "string",
-      "pattern": "^(core|streaming|errors|discovery|edge)/[a-z0-9-]+$",
-      "description": "Scenario ID; must match its file path (<dir>/<name>.json)."
+      "pattern": "^((core|streaming|errors|discovery|edge)/[a-z0-9-]+|arkavo/(identity|policy|wire|ws|tdf|transport-equivalence|degradation|discovery)/[a-z0-9-]+)$",
+      "description": "Scenario ID; must match its file path relative to scenarios/ (one level for the core corpus, arkavo/<group>/<name> for extension scenarios)."
     },
     "title": { "type": "string" },
     "spec": { "type": "string", "description": "A2A spec section reference(s), e.g. \"§3.1.1, §9.4.1\"." },
